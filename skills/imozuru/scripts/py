@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Run imozuru's scripts with Python 3.10+: python3 if it is new enough, otherwise uv's Python 3.12.
+# usage: scripts/py scripts/fetch.py <sources_dir> <name> <url>
+if python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+  exec python3 "$@"
+fi
+if command -v uv >/dev/null 2>&1; then
+  exec uv run --quiet --python 3.12 --no-project python "$@"
+fi
+echo "imozuru: needs Python 3.10+ (python3 is older and uv is not installed)" >&2
+exit 2
