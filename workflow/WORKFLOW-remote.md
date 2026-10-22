@@ -16,7 +16,7 @@ ask-me question about T<n>) is the go for step 7. Nothing else counts as the go:
 
 ## Phase A: before the go (research, no build)
 
-1. **Number first.** Before anything else, give the task the next free number. Read `~/factory/TASKS.md`, take
+1. **Number first.** Before anything else, give the task the next free number. Read `{{WORK_DIR}}/TASKS.md`, take
    the highest T number plus one, and add a row `| T<n> | <title> | numbered | <date> |`. Every session uses
    this file (the WhatsApp foreman and terminal sessions alike), so numbers never clash. Reply
    "T<n> received, researching" with their one-line request echoed back.
@@ -35,7 +35,7 @@ ask-me question about T<n>) is the go for step 7. Nothing else counts as the go:
    cite the real case it is based on, or say "assumption".
 4. **Spec and roadmap.** Write `SPEC.md` and `ROADMAP.md` from the templates. Every requirement and milestone
    names the KGI/KPI it serves and the real case it copies. These drafts live in
-   `~/factory/<repo>/` (create the repo with `git init` if needed) and stay uncommitted until the lock.
+   `{{WORK_DIR}}/<repo>/` (create the repo with `git init` if needed) and stay uncommitted until the lock.
 5. **Suggest.** Send the owner a phone-readable summary (through the channel's reply tool, or
    `ask-me --tell` from a session without the channel):
    - the best real case found
@@ -75,7 +75,7 @@ ask-me question about T<n>) is the go for step 7. Nothing else counts as the go:
 10. **Build.** Implement until all tests pass. Push with the safe-push skill
     (`$FACTORY_KIT/scripts/safe-push.sh --branch main --test "<full test command>"`, from the task's linked
     worktree) only if the repo has a remote the owner owns. Then:
-    - Run `python3 ~/factory/workflow/check_task.py ~/factory/<repo>` (or the worktree) and include its result.
+    - Run `python3 {{WORK_DIR}}/workflow/check_task.py {{WORK_DIR}}/<repo>` (or the worktree) and include its result.
     - Report T<n>: what changed and where, test results, KGI status, and REA limitations.
     - Set TASKS.md to `done`.
 

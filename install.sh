@@ -3,8 +3,8 @@
 #
 #   install.sh              dry run: print every change, including the exact lines for the global files
 #   install.sh --apply      write them (a backup is taken of every global file before it changes)
-#   install.sh --uninstall  take out what the kit added (hooks, skill links, shell lines, generated/);
-#                           the work folder (TASKS.md, task repos) is kept
+#   install.sh --uninstall  take out what the kit added (hooks, skill links, shell lines, generated/, the
+#                           rendered <WORK_DIR>/workflow); TASKS.md and the task repos are kept
 #
 # What --apply does:
 #   - generated/: mcp.json, workspace-settings.json, claude-settings.json, codex-hooks.json,
@@ -15,7 +15,8 @@
 #     apply_patch) and the Stop hook. Codex runs new hooks only after you trust them with /hooks.
 #   - shell rc: FACTORY_KIT and a `foreman` alias
 #   - each kit skill linked into ~/.claude/skills and ~/.agents/skills (names that exist are skipped)
-#   - <WORK_DIR>: CLAUDE.md, AGENTS.md, TASKS.md and a workflow link (existing files are kept)
+#   - <WORK_DIR>/workflow: the kit's workflow files rendered with WORK_DIR filled in (rewritten on each apply)
+#   - <WORK_DIR>: CLAUDE.md, AGENTS.md, TASKS.md (existing files are kept)
 #   - the channel's node modules (npm ci) when missing
 set -eu
 KIT="$(cd "$(dirname "$0")" && pwd -P)"
@@ -25,7 +26,7 @@ case "${1:-}" in
   "") ;;
   --apply) MODE=apply ;;
   --uninstall) MODE=uninstall ;;
-  -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   *) echo "install.sh: unknown argument $1 (use --apply or --uninstall)" >&2; exit 2 ;;
 esac
 
@@ -93,11 +94,12 @@ open(path, "w").write("".join(out))
 PY
     echo "removed the factory-kit lines from $RC"
   fi
+  python3 "$KIT/lib/render.py" --work uninstall
   if [ -d "$KIT/generated" ]; then
     for f in "$KIT"/generated/*; do if [ -e "$f" ]; then rm "$f"; fi; done
     rmdir "$KIT/generated" && echo "removed: $KIT/generated"
   fi
-  echo "kept: the work folder and its tasks (delete it yourself if you want)"
+  echo "kept: the work folder's TASKS.md and task repos (delete them yourself if you want)"
   exit 0
 fi
 
@@ -154,19 +156,8 @@ for base in $SKILL_BASES; do
   done
 done
 
-# --- work folder
-for f in CLAUDE.md AGENTS.md TASKS.md workflow; do
-  dest="$WORK/$f"
-  if [ -e "$dest" ] || [ -L "$dest" ]; then
-    echo "skip: $dest exists"
-  elif [ "$MODE" = print ]; then
-    echo "would create $dest"
-  else
-    mkdir -p "$WORK"
-    if [ "$f" = workflow ]; then ln -s "$KIT/workflow" "$dest"; else cp "$KIT/templates/factory/$f" "$dest"; fi
-    echo "created: $dest"
-  fi
-done
+# --- work folder: workflow/ rendered with WORK_DIR filled in (updated on every apply), owner files when missing
+python3 "$KIT/lib/render.py" --work "$MODE"
 
 # --- channel modules
 if [ ! -d "$KIT/foreman/channel/node_modules" ]; then

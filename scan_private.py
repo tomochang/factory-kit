@@ -12,7 +12,8 @@ path included:
    ~/.codex/config.toml) and the scripts they point to (chat IDs, phone numbers, "<Name>-san", owner words,
    the token file next to them), the login name, git user name/email and the GitHub owner of origin.
    Folders under $HOME that hold the user's hook scripts count as private folders: "~/<folder>" in the repo
-   is a finding (except in the locked task docs, which describe this very scan).
+   is a finding (except in the locked task docs, which describe this very scan). The locked task docs and the
+   LICENSE copyright line may name the GitHub account that owns the repo.
 
 Output names only the file, the line and the kind of value. Exit 1 on any finding, 0 when clean.
 Usage: scan_private.py [--root DIR] [--no-live] [--values FILE] [PATH ...]
@@ -37,7 +38,10 @@ FAKE = {"!self:beeper.local", "!other:beeper.local", "+81700000000", "+819999999
 FAKE_USERS = {"x", "you", "me", "example", "alice", "Shared"}
 GENERIC_DIRS = {".claude", ".codex", ".agents", ".config", ".local", "factory", "factory-kit", "research",
                 "Library", "bin", "tmp", ".npm", ".cache"}
-LOCKED_DOCS = re.compile(r"^T\d+-(KGI|SPEC|ROADMAP)\.md$")  # locked task docs may name the protected folder
+# locked task docs (old root names, and docs/t<n>/ since T14) may name the protected folder and the repo's own
+# GitHub account; so may the LICENSE copyright line (the holder must be named, and the repo URL names it anyway)
+LOCKED_DOCS = re.compile(r"^(T\d+-(KGI|SPEC|ROADMAP|REFERENCE)|docs/t\d+/(KGI|SPEC|ROADMAP|REFERENCE))\.md$")
+PUBLIC_OWNER = "GitHub account"
 OWNER_SET = re.compile(r"OWNER_WORDS\s*=\s*\{([^}]*)\}")
 SAN = re.compile(r"\b([A-Z][a-z]{2,})-san\b")
 SELF_NAME = re.compile(r":\s*([A-Z][a-z]+(?: [A-Z][a-z]+)+) \(self\)")
@@ -200,7 +204,9 @@ def decode(raw):
 
 def scan_text(name, text, v):
     found = []
-    locked = bool(LOCKED_DOCS.match(os.path.basename(name)))
+    rel = name.replace(os.sep, "/")
+    locked = bool(LOCKED_DOCS.match(os.path.basename(name)) or LOCKED_DOCS.match(rel))
+    licence = rel == "LICENSE"
     lines = text.splitlines() or [""]
     for i, line in enumerate([name] + lines):
         where = "%s:%s" % (name, i if i else "path")
@@ -220,6 +226,8 @@ def scan_text(name, text, v):
                 found.append((where, kind))
         low = line.lower()
         for w, kind in v.words.items():
+            if kind == PUBLIC_OWNER and (locked or (licence and line.startswith("Copyright"))):
+                continue
             if re.search(r"(?<![a-z0-9])%s(?![a-z0-9])" % re.escape(w), low):
                 found.append((where, kind))
         if not locked:
