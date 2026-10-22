@@ -4,7 +4,9 @@
 #   factory.env -> install.sh (print) -> install.sh --apply -> doctor.sh passes
 #   -> the channel, started exactly as the generated mcp.json says, delivers an "F:" message the owner types
 #      to the session (notifications/claude/channel) and the session's spec reply lands in the owner's own chat
-#   -> foreman.sh starts claude with the channel -> install.sh --uninstall takes the hooks out again.
+#   -> foreman.sh starts claude with the channel -> the work folder files are rendered with WORK_DIR filled in
+#   (default ~/factory: same text as before; re-install updates them) -> install.sh --uninstall takes the hooks and
+#   the rendered workflow out again -> the same with a custom WORK_DIR: 0 hits for "~/factory" in what it renders.
 # Never touches the real HOME, Beeper, agent configs or running processes. Exit 0 = PASS.
 # What it cannot show locally: a real Claude Code session reading the event and writing the spec (KGI part
 # measured after delivery by sending "F: ping" from the phone; see README "Check it works").
@@ -104,9 +106,53 @@ FACTORY_WATCHDOG=off bash "$KIT/foreman/foreman.sh" || fail "foreman.sh"
 grep -qx "arg=server:whatsapp" "$TMP/bin/calls.log" || fail "foreman did not load the whatsapp channel"
 grep -qx "arg=$KIT/generated/mcp.json" "$TMP/bin/calls.log" || fail "foreman did not use the generated mcp.json"
 
+# The work folder files are rendered from the kit (workflow/*.md, templates/factory/*) with WORK_DIR filled in.
+RENDERED="workflow/WORKFLOW.md workflow/WORKFLOW-remote.md workflow/README.md CLAUDE.md AGENTS.md TASKS.md"
+src_of() { case "$1" in workflow/*) echo "$KIT/$1" ;; *) echo "$KIT/templates/factory/$1" ;; esac; }
+check_rendered() {  # check_rendered <work dir> <how the files must name it>
+  [ -d "$1/workflow" ] && [ ! -L "$1/workflow" ] || fail "$1/workflow is not a rendered folder"
+  for f in $RENDERED; do
+    [ -f "$1/$f" ] || fail "$1/$f not rendered"
+    ! grep -q '{{' "$1/$f" || fail "placeholder left in $1/$f"
+    sed "s#{{WORK_DIR}}#$2#g" "$(src_of "$f")" | cmp -s - "$1/$f" || fail "$1/$f differs from its template"
+  done
+  for f in check_task.py templates/KGI.md templates/SPEC.md templates/ROADMAP.md templates/REFERENCE.md; do
+    [ -f "$1/workflow/$f" ] || fail "$1/workflow/$f missing"
+  done
+  grep -qF "Read \`$2/TASKS.md\`" "$1/workflow/WORKFLOW.md" || fail "WORKFLOW.md does not name $2"
+  grep -qF "$2/workflow/check_task.py $2/<repo>" "$1/workflow/WORKFLOW-remote.md" || fail "WORKFLOW-remote.md does not name $2"
+}
+
+step "default WORK_DIR: the rendered workflow is the same text as before (~/factory)"
+check_rendered "$HOME/factory" "~/factory"
+for f in workflow/WORKFLOW.md workflow/WORKFLOW-remote.md workflow/README.md; do
+  grep -q "~/factory/TASKS.md" "$HOME/factory/$f" || fail "default $f does not name ~/factory/TASKS.md"
+done
+
+step "re-running install updates the rendered files"
+echo "Added in a kit update." >> "$KIT/workflow/WORKFLOW.md"
+bash "$KIT/install.sh" --apply > "$TMP/apply2.log" 2>&1 || { cat "$TMP/apply2.log"; fail "second --apply"; }
+tail -1 "$HOME/factory/workflow/WORKFLOW.md" | grep -qx "Added in a kit update." || fail "re-install did not update"
+echo "| T1 | my task | done | 2026-10-22 |" >> "$HOME/factory/TASKS.md"
+
 step "install.sh --uninstall"
 bash "$KIT/install.sh" --uninstall > "$TMP/uninstall.log" 2>&1 || { cat "$TMP/uninstall.log"; fail "uninstall"; }
 if grep -q "$KIT" "$HOME/.claude/settings.json" "$HOME/.codex/hooks.json" 2>/dev/null; then fail "hooks left after uninstall"; fi
 [ ! -e "$HOME/.claude/skills/foreman" ] || fail "skill link left after uninstall"
+[ ! -e "$HOME/factory/workflow" ] || fail "rendered workflow left after uninstall"
+grep -q "my task" "$HOME/factory/TASKS.md" || fail "uninstall removed the owner's TASKS.md"
+
+step "custom WORK_DIR: install into a work folder that is not ~/factory"
+sed -i.bak 's#^WORK_DIR=.*#WORK_DIR="$HOME/projects/shop"#' "$KIT/factory.env" && rm "$KIT/factory.env.bak"
+bash "$KIT/install.sh" --apply > "$TMP/apply3.log" 2>&1 || { cat "$TMP/apply3.log"; fail "custom --apply"; }
+WORK="$HOME/projects/shop"
+check_rendered "$WORK" "~/projects/shop"
+hits="$(grep -rF "~/factory" "$WORK" "$KIT/generated" | grep -c . || true)"
+[ "$hits" = 0 ] || { grep -rnF "~/factory" "$WORK" "$KIT/generated"; fail "$hits hits for ~/factory with a custom WORK_DIR"; }
+grep -qF "$WORK/TASKS.md" "$KIT/generated/channel-instructions.txt" || fail "channel instructions do not name $WORK"
+bash "$KIT/doctor.sh" > "$TMP/doctor2.log" 2>&1 || { cat "$TMP/doctor2.log"; fail "doctor.sh with a custom WORK_DIR"; }
+bash "$KIT/install.sh" --uninstall > "$TMP/uninstall2.log" 2>&1 || { cat "$TMP/uninstall2.log"; fail "uninstall"; }
+[ ! -e "$WORK/workflow" ] || fail "rendered workflow left after uninstall (custom WORK_DIR)"
+[ -f "$WORK/TASKS.md" ] || fail "uninstall removed TASKS.md (custom WORK_DIR)"
 
 echo "clean-install: PASS"
