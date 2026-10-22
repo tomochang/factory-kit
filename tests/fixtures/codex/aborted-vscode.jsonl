@@ -1,0 +1,8 @@
+{"timestamp": "2026-09-30T04:44:34.026Z", "type": "session_meta", "payload": {"id": "01a0f0a0-2014-7f90-ade5-822854be823b", "timestamp": "2026-09-30T04:43:40.973Z", "cwd": "/Users/alice/work/notes-app", "originator": "codex-tui", "cli_version": "0.159.2", "source": "vscode", "thread_source": "user"}}
+{"timestamp": "2026-09-30T06:40:41.547Z", "type": "event_msg", "payload": {"type": "task_started", "turn_id": "01a0f10b-4040-7b33-a80d-e12d8911c7ab", "started_at": 1790750441}}
+{"timestamp": "2026-09-30T06:41:02.821Z", "type": "response_item", "payload": {"type": "custom_tool_call"}}
+{"timestamp": "2026-09-30T06:41:10.511Z", "type": "event_msg", "payload": {"type": "task_complete", "turn_id": "01a0f10b-4040-7b33-a80d-e12d8911c7ab", "started_at": 1790750441, "completed_at": 1790750470, "last_agent_message": "Plan saved."}}
+{"timestamp": "2026-09-30T06:45:21.648Z", "type": "event_msg", "payload": {"type": "thread_settings_applied"}}
+{"timestamp": "2026-09-30T06:45:21.651Z", "type": "event_msg", "payload": {"type": "task_started", "turn_id": "01a0f10f-8668-7f93-a55b-14226c641721", "started_at": 1790750721}}
+{"timestamp": "2026-09-30T06:46:13.236Z", "type": "event_msg", "payload": {"type": "item_completed"}}
+{"timestamp": "2026-09-30T06:46:23.214Z", "type": "event_msg", "payload": {"type": "turn_aborted", "turn_id": "01a0f10f-8668-7f93-a55b-14226c641721", "reason": "interrupted", "started_at": 1790750721, "completed_at": 1790750783}}

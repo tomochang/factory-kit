@@ -19,7 +19,9 @@ def codex_args(tmp_path, sandbox=None):
     out = run(["bash", str(kit / "foreman" / "codex-run.sh"), str(wt), str(task), "--model", "gpt-5.5"], env)
     assert out.returncode == 0, out.stdout + out.stderr
     log = (tmp_path / "bin" / "calls.log").read_text().splitlines()
-    return [l[4:] for l in log if l.startswith("arg=")], wt.resolve()
+    args = [l[4:] for l in log if l.startswith("arg=")]
+    assert args[:4] == ["exec", "--json", "-o", str(task.resolve().parent / "t2.codex-last.md")]  # T18 R5
+    return ["exec"] + args[4:], wt.resolve()
 
 
 def test_codex_sandbox_is_off_by_default(tmp_path):

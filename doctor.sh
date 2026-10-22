@@ -101,6 +101,23 @@ if any("factory_guard.py" in c for c in cmds) and any("ask_me_stop.py" in c for 
         print("PASS Codex hook trust: every factory-kit hook has a trust record")
 else:
     print(f"FAIL Codex hooks: not installed; run: bash {kit}/install.sh --apply")
+# T18: the Stop hook that records finished Codex turns for the watchdog
+watch = [(gi, hi) for gi, g in enumerate(((codex or {}).get("hooks") or {}).get("Stop") or [])
+         for hi, h in enumerate(g.get("hooks", [])) if kit in h.get("command", "") and "codex_watch_stop.py" in h.get("command", "")]
+if not watch:
+    print(f"FAIL Codex watch hook: codex_watch_stop.py is not a Stop hook in ~/.codex/hooks.json; run: bash {kit}/install.sh --apply")
+else:
+    try:
+        toml = open(os.path.join(home, ".codex", "config.toml")).read()
+    except OSError:
+        toml = ""
+    gi, hi = watch[0]
+    key = re.escape(f'[hooks.state."{codex_file}:stop:{gi}:{hi}"]')
+    if re.search(key + r"\s*\n(?:[^\[]*\n)*?\s*trusted_hash\s*=", toml):
+        print("PASS Codex watch hook: codex_watch_stop.py is a trusted Stop hook (finished turns reach the watchdog at once)")
+    else:
+        print("WARN Codex watch hook: codex_watch_stop.py is not trusted yet; start codex, type /hooks and trust it"
+              " (until then the watchdog still sees finished turns in the rollouts)")
 PY
 hook_out=$?
 [ "$hook_out" = 0 ] || fail "hook check could not run"
@@ -114,6 +131,18 @@ else
   fail "dev channel: $MCP missing or broken; run: bash $KIT/install.sh --apply"
 fi
 [ -d "$KIT/foreman/channel/node_modules" ] || fail "channel modules: run: cd $KIT/foreman/channel && npm ci"
+
+# Codex rollouts (the watchdog's Codex watch reads them)
+SESS="$($KITENV get CODEX_SESSIONS)"
+n="$(find "$SESS" -name 'rollout-*.jsonl' -mtime -7 2>/dev/null | head -200 | while read -r f; do
+  head -c 4096 "$f" | head -1 | grep -q '"session_meta"' && echo x; done | wc -l | tr -d ' ')"
+if [ "${n:-0}" -gt 0 ]; then
+  pass "Codex rollouts: $n readable in $SESS from the last 7 days (the watchdog watches Codex runs there)"
+else
+  warn "Codex rollouts: none readable in $SESS (set CODEX_SESSIONS in factory.env if Codex keeps them elsewhere; the watchdog can't see Codex runs until then)"
+fi
+idle="$($KITENV get CODEX_IDLE_MIN)"
+case "$idle" in ''|*[!0-9]*|0) warn "CODEX_IDLE_MIN=\"$idle\" is not a whole number of minutes; the watchdog uses 10" ;; esac
 
 # watchdog
 WD="$KIT/watchdog/watchdog.py"
