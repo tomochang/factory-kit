@@ -24,6 +24,9 @@ DEFAULTS = {
     "CHAT_ID": "",
     "TOKEN_FILE": "",
     "CODEX_SANDBOX": "0",
+    # Codex watch (watchdog/watchdog.py, T18)
+    "CODEX_IDLE_MIN": "10",
+    "CODEX_SESSIONS": "~/.codex/sessions",
     # WhatsApp reply guard (hooks/reply_guard.py, T22)
     "REPLY_MAX_CHARS": "700",
     "REPLY_MAX_LINES": "10",
@@ -38,7 +41,7 @@ ALIASES = {
     "TOKEN_FILE": ("BEEPER_TOKEN_FILE",),
     "CHAT_ID": ("ASK_ME_CHAT", "FACTORY_CHAT"),
 }
-PATHS = ("TOKEN_FILE", "WORK_DIR", "ASK_ME_STATE")
+PATHS = ("TOKEN_FILE", "WORK_DIR", "ASK_ME_STATE", "CODEX_SESSIONS")
 
 
 def env_file():

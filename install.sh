@@ -12,7 +12,8 @@
 #   - ~/.claude/settings.json: the Stop hook (ask_me_stop.py). The guards are workspace-scoped for Claude Code:
 #     foreman.sh copies generated/workspace-settings.json to <WORK_DIR>/.claude/settings.json.
 #   - ~/.codex/hooks.json: the same guards (security-bash, security-file-write, factory_guard, matching
-#     apply_patch) and the Stop hook. Codex runs new hooks only after you trust them with /hooks.
+#     apply_patch), the Stop hook and a second Stop hook, codex_watch_stop.py, that records each finished turn
+#     for the watchdog's Codex watch. Codex runs new hooks only after you trust them with /hooks.
 #   - shell rc: FACTORY_KIT and a `foreman` alias
 #   - each kit skill linked into ~/.claude/skills and ~/.agents/skills (names that exist are skipped)
 #   - <WORK_DIR>/workflow: the kit's workflow files rendered with WORK_DIR filled in (rewritten on each apply)
@@ -57,8 +58,11 @@ trust_step() {
   cat <<EOF
 
 Codex hook trust (once per Mac, and again after a hook changes):
-  start codex, type /hooks, review the factory-kit hooks in $CODEX_HOOKS and trust them.
+  start codex, type /hooks, review the factory-kit hooks in $CODEX_HOOKS and trust them,
+  including the Stop hook $KIT/hooks/codex_watch_stop.py (it tells the watchdog when a Codex turn ends).
   Codex skips new or changed hooks until they are trusted; doctor.sh shows whether they are.
+  A watchdog that was already running keeps its old code until restarted: pkill -f $KIT/watchdog/watchdog.py,
+  then start the foreman again (or: bash $KIT/foreman/start-watchdog.sh $KIT $KIT/watchdog/watchdog.sha256).
 EOF
 }
 

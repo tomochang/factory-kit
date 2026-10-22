@@ -16,8 +16,9 @@ The kit holds the whole foreman flow:
 | `hooks/reply_guard.py` | the foreman's WhatsApp replies, enforced: a reply that is too long, does not start with what you must do (`You:` / `Nothing needed` / `Got it`), shows a local file path, claims done/green while the PR's checks are not all green (`gh pr checks`), or comes as a burst is refused with a rewrite hint; the foreman cannot end its turn while a message of yours has no reply. Limits in factory.env (`REPLY_*`) |
 | `scripts/ask-me.py` | asks you on your phone and returns your reply; `--tell` for reports; `--check` for doctor |
 | `scripts/safe-push.sh` | pushes a worktree's commits safely (clean, rebased, tested) |
-| `watchdog/watchdog.py` | messages you when the foreman stops, restarts or its channel goes quiet (started pinned by `foreman/start-watchdog.sh`) |
-| `foreman/codex-run.sh` | runs a build in Codex: `command codex exec --cd <worktree>`; `CODEX_SANDBOX=1` in factory.env adds `--sandbox workspace-write` (then git commit and ask-me don't work inside the build) |
+| `watchdog/watchdog.py` | messages you when the foreman stops, restarts or its channel goes quiet, and when a Codex run finishes, stops without finishing, is interrupted or sits idle after finishing (started pinned by `foreman/start-watchdog.sh`) |
+| `hooks/codex_watch_stop.py` | Codex Stop hook: records each finished turn for the watchdog (trust it once in Codex `/hooks`) |
+| `foreman/codex-run.sh` | runs a build in Codex: `command codex exec --json --cd <worktree>` (events in `<task>.codex.jsonl`, exit code kept, "Codex build failed: <task>" on failure); `CODEX_SANDBOX=1` in factory.env adds `--sandbox workspace-write` (then git commit and ask-me don't work inside the build) |
 | `skills/` | `imozuru`, `foreman`, `ask-me`, `safe-push`, linked into both `~/.claude/skills` and `~/.agents/skills` |
 | `install.sh`, `doctor.sh` | install (dry run first) and check |
 

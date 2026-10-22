@@ -1,0 +1,6 @@
+{"timestamp": "2026-10-21T18:01:08.897Z", "type": "session_meta", "payload": {"id": "01a15f9d-d446-71d1-976a-965afc7a3695", "timestamp": "2026-10-21T17:59:01.475Z", "cwd": "/private/tmp/t9-inbox-zero", "originator": "codex-tui", "cli_version": "0.163.0", "source": {"subagent": {"other": "guardian"}}, "thread_source": "guardian_review", "parent_thread_id": "01a15f9d-d3fd-78f2-a879-c4e87d83cb49"}}
+{"timestamp": "2026-10-21T18:31:18.079Z", "type": "event_msg", "payload": {"type": "task_started", "turn_id": "01a15fbb-613b-7613-81fd-4b3d638ee480", "started_at": 1792607478}}
+{"timestamp": "2026-10-21T18:31:21.202Z", "type": "event_msg", "payload": {"type": "task_complete", "turn_id": "01a15fbb-613b-7613-81fd-4b3d638ee480", "started_at": 1792607478, "completed_at": 1792607481, "last_agent_message": "approved"}}
+{"timestamp": "2026-10-21T18:32:14.508Z", "type": "event_msg", "payload": {"type": "thread_settings_applied"}}
+{"timestamp": "2026-10-21T18:32:14.511Z", "type": "event_msg", "payload": {"type": "task_started", "turn_id": "01a15fbc-3dab-7cf1-9650-e3a2cc8dbb50", "started_at": 1792607534}}
+{"timestamp": "2026-10-21T18:32:17.974Z", "type": "event_msg", "payload": {"type": "task_complete", "turn_id": "01a15fbc-3dab-7cf1-9650-e3a2cc8dbb50", "started_at": 1792607534, "completed_at": 1792607537, "last_agent_message": "approved"}}

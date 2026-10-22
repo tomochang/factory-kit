@@ -50,7 +50,8 @@ def test_codex_run_starts_codex_exec_in_the_worktree(tmp_path):
     log = calls(tmp_path)
     assert log[0].startswith("codex ") and log[0].endswith("session=1")
     args = [l[4:] for l in log if l.startswith("arg=")]
-    assert args == ["exec", "--cd", str(wt.resolve()), "--model", "gpt-5.5", "-"]
+    assert args == ["exec", "--json", "-o", str(task.resolve().parent / "t1-wt.codex-last.md"),  # T18 R5
+                    "--cd", str(wt.resolve()), "--model", "gpt-5.5", "-"]
     assert (tmp_path / "bin" / "codex.stdin").read_text() == task.read_text()
     assert "command codex" in (kit / "foreman" / "codex-run.sh").read_text()  # never a shell function
 
