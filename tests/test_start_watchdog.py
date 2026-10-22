@@ -54,3 +54,25 @@ def test_missing_pin_means_not_started(tmp_path):
     assert "not started" in r.stderr
     time.sleep(1)
     assert not (wd / "started").exists()
+
+
+SLEEPER = ("import pathlib, sys, time\npathlib.Path(sys.argv[0]).with_name('started').write_text('yes')\n"
+           "time.sleep(20)\n")
+
+
+def test_an_older_running_watchdog_is_named_with_the_restart_command(tmp_path):
+    # T18: a new reviewed watchdog.py (the Codex watcher) only runs after the old process is restarted
+    import hashlib
+    import subprocess as sp
+    wd, pin = setup(tmp_path, code=SLEEPER)
+    try:
+        assert start(tmp_path, pin).returncode == 0 and started(wd)
+        r = start(tmp_path, pin)                                   # same version running: says nothing
+        assert r.stderr == ""
+        new = SLEEPER + "# v2\n"
+        (wd / "watchdog.py").write_text(new)
+        pin.write_text(hashlib.sha256(new.encode()).hexdigest() + "\n")
+        r = start(tmp_path, pin)
+        assert "older" in r.stderr and "pkill -f" in r.stderr and str(wd / "watchdog.py") in r.stderr
+    finally:
+        sp.run(["pkill", "-f", str(wd / "watchdog.py")])

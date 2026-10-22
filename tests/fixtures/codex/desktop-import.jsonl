@@ -1,0 +1,5 @@
+{"timestamp": "2026-10-21T01:08:40.007Z", "type": "session_meta", "payload": {"id": "01a15c00-d1b3-7bb1-bce2-a4df1b5d9c0d", "timestamp": "2026-10-21T01:08:39.987Z", "cwd": "/Users/alice/work/notes-app", "originator": "Codex Desktop", "cli_version": "0.163.0-alpha.10.2", "source": "vscode"}}
+{"timestamp": "2026-10-22T01:09:21.600Z", "type": "event_msg", "payload": {"type": "task_started", "turn_id": "external-import-turn-100", "started_at": 1792603708}}
+{"timestamp": "2026-10-22T01:09:21.600Z", "type": "event_msg", "payload": {"type": "task_complete", "turn_id": "external-import-turn-100", "started_at": 1792603708, "last_agent_message": null}}
+{"timestamp": "2026-10-22T01:09:21.600Z", "type": "event_msg", "payload": {"type": "task_started", "turn_id": "external-import-turn-101", "started_at": 1792603768}}
+{"timestamp": "2026-10-22T01:09:21.600Z", "type": "event_msg", "payload": {"type": "task_complete", "turn_id": "external-import-turn-101", "started_at": 1792603768, "completed_at": 1792603768, "last_agent_message": null}}
