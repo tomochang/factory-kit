@@ -27,10 +27,16 @@ await fetch(base + '/test/add', { method: 'POST', body: JSON.stringify({ text: '
 for (let i = 0; i < 50 && events.length === 0; i++) await sleep(100)
 if (events.length !== 1 || events[0].content !== 'build a word counter CLI') fail('task not delivered: ' + JSON.stringify(events))
 console.log('e2e: task delivered to the session: ' + events[0].content)
-const spec = 'T1 spec: wc CLI in ~/factory/wc, tested with pytest. Reply F: go T1'
+const marks = await (await fetch(base + '/test/reactions')).json()
+if (!marks.some(m => m.id === events[0].meta.message_id && m.key === '👀')) fail('no 👀 receipt on the task: ' + JSON.stringify(marks))
+console.log('e2e: the task got its 👀 receipt')
+const spec = 'You: reply F: go T1\nT1 spec: wc CLI, tested with pytest.'
 const r = await client.callTool({ name: 'reply', arguments: { text: spec } })
 if (r.isError) fail('reply refused: ' + JSON.stringify(r.content))
 const sent = await (await fetch(base + '/test/sent')).json()
 if (!sent.some(t => t.endsWith(spec))) fail('spec reply not in the own chat: ' + JSON.stringify(sent))
 console.log('e2e: spec reply reached the own chat')
+const done = await (await fetch(base + '/test/reactions')).json()
+if (!done.some(m => m.id === events[0].meta.message_id && m.key === '✅')) fail('no ✅ after the reply: ' + JSON.stringify(done))
+console.log('e2e: the task got ✅ after the reply')
 await client.close()
