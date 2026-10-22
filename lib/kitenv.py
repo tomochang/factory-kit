@@ -24,6 +24,8 @@ DEFAULTS = {
     "CHAT_ID": "",
     "TOKEN_FILE": "",
     "CODEX_SANDBOX": "0",
+    "CODEX_IDLE_MIN": "10",
+    "CODEX_SESSIONS": "~/.codex/sessions",
 }
 # names the scripts have always read; they win over the generic factory.env names
 ALIASES = {
@@ -31,7 +33,7 @@ ALIASES = {
     "TOKEN_FILE": ("BEEPER_TOKEN_FILE",),
     "CHAT_ID": ("ASK_ME_CHAT", "FACTORY_CHAT"),
 }
-PATHS = ("TOKEN_FILE", "WORK_DIR", "ASK_ME_STATE")
+PATHS = ("TOKEN_FILE", "WORK_DIR", "ASK_ME_STATE", "CODEX_SESSIONS")
 
 
 def env_file():
