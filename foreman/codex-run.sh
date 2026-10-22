@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Start a factory build in Codex: `command codex exec --cd <worktree> --sandbox workspace-write -` with the task
-# file on stdin. workspace-write (T15 R5): commands may write only the worktree; network is off; the resolved .git
-# directory is read-only, so commit the worktree after Codex finishes (the Bash hooks still apply inside).
+# Start a factory build in Codex: `command codex exec --cd <worktree> -` with the task file on stdin.
+# CODEX_SANDBOX=1 in factory.env (off by default) adds `--sandbox workspace-write`: commands may write only the
+# worktree, but the network is off and the worktree's git directory is read-only, so git commit and ask-me don't
+# work inside the build (commit after Codex finishes). The Bash hooks apply either way.
 # `command` skips any `codex` shell function (one that forces --cd elsewhere would run the build in the wrong
 # folder). FACTORY_SESSION=1 makes the kit's guards (in ~/.codex/hooks.json) treat it as a factory session.
 # Codex has no channel push: the Claude foreman stays the inbox and starts this in the background.
@@ -26,4 +27,6 @@ for d in kitenv.load()["PROTECTED_DIRS"]:
         sys.exit(1)
 PY
 export FACTORY_SESSION=1 FACTORY_ENV="${FACTORY_ENV:-$KIT/factory.env}"
-command codex exec --cd "$WT" --sandbox workspace-write "$@" - < "$TASK"
+SANDBOX=()
+[ "$(python3 "$KIT/lib/kitenv.py" get CODEX_SANDBOX)" = "1" ] && SANDBOX=(--sandbox workspace-write)
+command codex exec --cd "$WT" ${SANDBOX[@]+"${SANDBOX[@]}"} "$@" - < "$TASK"

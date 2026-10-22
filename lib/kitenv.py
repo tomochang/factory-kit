@@ -23,6 +23,7 @@ DEFAULTS = {
     "OWNER_NAME": "",
     "CHAT_ID": "",
     "TOKEN_FILE": "",
+    "CODEX_SANDBOX": "0",
 }
 # names the scripts have always read; they win over the generic factory.env names
 ALIASES = {
