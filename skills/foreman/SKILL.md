@@ -33,6 +33,18 @@ in the background. It calls `command codex exec --cd <worktree>` (never a `codex
 a factory session so the guards in `~/.codex/hooks.json` apply, and refuses protected folders. Inside Codex,
 questions go through the ask-me skill with `--timeout 5` and `--wait`.
 
+## Sandboxed builds (T15)
+
+Builds can run inside an OS sandbox; the interactive foreman itself is not sandboxed.
+
+    $FACTORY_KIT/foreman/claude-run.sh /private/tmp/t7-wt /private/tmp/t7-task.md   # Claude Code, headless (-p)
+    $FACTORY_KIT/foreman/codex-run.sh  /private/tmp/t7-wt /private/tmp/t7-task.md   # Codex, --sandbox workspace-write
+
+claude-run.sh passes `generated/build-settings.json` with `--settings`: Bash writes only the worktree and the
+npm/pip/uv caches, can't read ~/.ssh, ~/.aws, ~/.config/gh, ~/.gnupg, the Beeper token or factory.env, and can't
+fall back to running unsandboxed. git, safe-push and ask-me run outside the sandbox and stay under the Bash hooks.
+Under Codex workspace-write the worktree's git directory is read-only and the network is off: commit after it ends.
+
 ## Never
 
 - Build in the foreground, or start work without the owner's `F: go T<n>`.

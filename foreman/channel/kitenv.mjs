@@ -74,7 +74,8 @@ export function renderInstructions (cfg) {
     PROTECTED_TEXT: cfg.PROTECTED_DIRS.join(' or '),
     ASK_ME: path.join(KIT, 'scripts', 'ask-me.py'),
     SAFE_PUSH: path.join(KIT, 'scripts', 'safe-push.sh'),
-    CODEX_RUN: path.join(KIT, 'foreman', 'codex-run.sh')
+    CODEX_RUN: path.join(KIT, 'foreman', 'codex-run.sh'),
+    CLAUDE_RUN: path.join(KIT, 'foreman', 'claude-run.sh')
   }
   const tmpl = fs.readFileSync(path.join(KIT, 'templates', 'channel-instructions.txt.tmpl'), 'utf8')
   return tmpl.replace(/\{\{([A-Z_]+)\}\}/g, (_, k) => {

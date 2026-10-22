@@ -3,6 +3,7 @@
 
     mcp.json                  the whatsapp channel for `claude --mcp-config` (no secrets: it names factory.env)
     workspace-settings.json   Claude Code guards, copied to <WORK_DIR>/.claude/settings.json by foreman.sh
+    build-settings.json       the same guards plus the OS sandbox, for Claude builds started by claude-run.sh
     claude-settings.json      the Stop hook install.sh adds to ~/.claude/settings.json
     codex-hooks.json          the same guards and Stop hook install.sh adds to ~/.codex/hooks.json
     channel-instructions.txt  what the foreman session is told about the channel
@@ -25,12 +26,14 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import kitenv  # noqa: E402
 
 PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
-JSON_TEMPLATES = ("mcp.json", "workspace-settings.json", "claude-settings.json", "codex-hooks.json")
+JSON_TEMPLATES = ("mcp.json", "workspace-settings.json", "build-settings.json", "claude-settings.json",
+                  "codex-hooks.json")
 
 
 def render_text(text, values):
@@ -63,6 +66,9 @@ def values(cfg, out):
         "ASK_ME": str(kit / "scripts" / "ask-me.py"),
         "SAFE_PUSH": str(kit / "scripts" / "safe-push.sh"),
         "CODEX_RUN": str(kit / "foreman" / "codex-run.sh"),
+        "CLAUDE_RUN": str(kit / "foreman" / "claude-run.sh"),
+        "TOKEN_FILE": cfg["TOKEN_FILE"],
+        "BEEPER_HOST": urlsplit(cfg["BEEPER_BASE"]).netloc or "127.0.0.1:23373",
     }
 
 

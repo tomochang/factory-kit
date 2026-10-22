@@ -1,0 +1,4 @@
+# Real false blocks by the live guard (2026-10-22), reported by the coordinator. Same format as bypass-corpus.txt.
+# Both must be ALLOWED: quoted strings and heredoc bodies are data. \n in a heredoc line is a newline.
+ALLOW	scripts/ask-me.py --from factory "T15 tests pass + then push the branch? (yes/no)"	live-2026-10-22
+ALLOW	cat > docs/setup.md <<'EOF'\n# Setup\nThe deploy key lives in ~/.ssh/id_ed25519 and ~/.ssh/config; never commit them.\nEOF	live-2026-10-22
