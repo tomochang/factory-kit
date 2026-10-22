@@ -224,11 +224,18 @@ TURN_EVENTS = ("task_started", "task_complete", "turn_aborted")
 ABORT_SETTLE = 30        # s: a "replaced" turn is followed at once by a new turn; tell only a lasting abort
 HOOK_SETTLE = 20         # s: ask_me_stop runs beside the Stop hook and may send the turn back
 RECENT = 24 * 3600       # s: only rollouts changed in the last 24 h are read
-FORGET = 3 * 24 * 3600   # s: told transitions are kept this long
-HEAD_MAX = 1 << 20       # bytes: session_meta is the first line; don't read more than this to find it
-SECRET_RE = re.compile(r"(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}"
-                       r"|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]+"
-                       r"|(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,})")
+FORGET = 7 * 24 * 3600   # s: told transitions are kept this long (events older than RECENT are never told)
+HEAD_MAX = 4 << 20       # bytes: longest session_meta line read
+CHUNK = 1 << 20          # bytes per read
+SECRET_RE = re.compile(
+    r"(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}"
+    r"|AIza[0-9A-Za-z_-]{30,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]+"
+    r"|(?<=://)[^/\s:@]+:[^@\s]+(?=@)"                                   # user:password@ in URLs
+    r"|(?i:(?<=pass)(?:word)?\s*[:=]\s*\S+|(?<=secret)\s*[:=]\s*\S+|(?<=token)\s*[:=]\s*\S+"
+    r"|(?<=api_key)\s*[:=]\s*\S+|(?<=api-key)\s*[:=]\s*\S+|(?<=apikey)\s*[:=]\s*\S+)"
+    r"|(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,}"
+    r"|(?<![A-Za-z0-9/+=_-])(?=[A-Za-z0-9/+=_-]*\d)(?=[A-Za-z0-9/+=_-]*[a-z])(?=[A-Za-z0-9/+=_-]*[A-Z])"
+    r"[A-Za-z0-9/+=_-]{32,})")
 
 
 def first_line(text, limit=100):
@@ -294,7 +301,6 @@ class Rollout:
         self.ino = None
         self.meta = None          # {"id", "cwd", "sub", "parent"}
         self.last = None          # last turn event: {"type", "turn", "reason", "message", "time"}
-        self.partial = b""
 
     def read(self, st):
         if self.ino != st.st_ino or st.st_size < self.offset:
@@ -304,23 +310,30 @@ class Rollout:
             return
         with open(self.path, "rb") as f:
             if self.meta is None and self.offset == 0:
-                head = f.readline(HEAD_MAX)
-                self.offset = len(head)
+                head = f.readline(HEAD_MAX)  # session_meta: about 23 KB on Codex 0.163
                 if not head.endswith(b"\n"):
-                    self.offset = 0      # first line still being written
-                    return
-                self._meta(head)
+                    if len(head) < HEAD_MAX:
+                        return           # first line still being written
+                    self._meta(b"")      # unreadably long: id from the file name, cwd unknown
+                    while head and not head.endswith(b"\n"):
+                        head = f.readline(HEAD_MAX)
+                    self.offset = f.tell()
+                else:
+                    self.offset = len(head)
+                    self._meta(head)
             f.seek(self.offset)
-            data = f.read()
-        self.offset += len(data)
-        data = self.partial + data
-        lines = data.split(b"\n")
-        self.partial = lines.pop()       # an unfinished last line is read again next time
-        self.offset -= len(self.partial)
-        self.partial = b""
-        for line in lines:
-            if b'"event_msg"' in line and (b"task_" in line or b"turn_aborted" in line):
-                self._event(line)
+            rest = b""
+            while True:                  # 1 MB at a time: big rollouts (images) never sit in memory whole
+                chunk = f.read(CHUNK)
+                if not chunk:
+                    break
+                lines = (rest + chunk).split(b"\n")
+                rest = lines.pop()
+                for line in lines:
+                    if b'"event_msg"' in line and (b"task_" in line or b"turn_aborted" in line):
+                        self._event(line)
+                self.offset += len(chunk)
+            self.offset -= len(rest)     # an unfinished last line is read again next time
 
     def _meta(self, line):
         try:
@@ -337,6 +350,7 @@ class Rollout:
             parent = spawn.get("parent_thread_id") if isinstance(spawn, dict) else None
         m = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$", self.path)
         self.meta = {"id": str(p.get("id") or (m.group(1) if m else self.path)), "cwd": str(p.get("cwd") or ""),
+                     "exec": src == "exec",
                      "sub": isinstance(src, dict) and "subagent" in src, "parent": parent}
 
     def _event(self, line):
@@ -347,7 +361,7 @@ class Rollout:
         p = rec.get("payload") if isinstance(rec, dict) else None
         if not isinstance(p, dict) or p.get("type") not in TURN_EVENTS:
             return
-        turn = str(p.get("turn_id") or "")
+        turn = str(p.get("turn_id") or rec.get("timestamp") or "")
         if turn.startswith("external-import"):
             return
         self.last = {"type": p["type"], "turn": turn, "reason": str(p.get("reason") or ""),
@@ -370,6 +384,9 @@ class CodexWatch:
         self.log = log or (lambda msg: print(msg, file=sys.stderr, flush=True))
         self.rollouts = {}
         self.told, self.baseline = self._load()
+        self.started = clock()   # transitions long before this start are recorded, never sent (no burst)
+        self.failures = {}       # key -> failed sends; a failed message is tried again up to 3 times
+        self.saved = None if self.baseline else dict(self.told)
 
     # state: {"told": {key: time}}; a missing or unreadable file means the first run, which only takes a baseline
     def _load(self):
@@ -383,12 +400,16 @@ class CodexWatch:
 
     def _save(self):
         now = self.clock()
-        self.told = {k: v for k, v in self.told.items() if now - v < FORGET}
+        kept = {k: v for k, v in self.told.items() if now - v < FORGET}
+        if kept == self.saved:
+            return
+        self.told = kept
         try:
             self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
             tmp = self.dir / "state.json.tmp"
             tmp.write_text(json.dumps({"told": self.told}))
             tmp.replace(self.dir / "state.json")
+            self.saved = dict(kept)
         except OSError as e:
             self.log(f"watchdog: codex state not saved: {e}")
 
@@ -438,16 +459,22 @@ class CodexWatch:
                 return True
         return False
 
-    def _tell(self, key, text, now):
+    def _tell(self, key, text, now, stale=False):
+        """Send text once for key. A stale transition (long before this watchdog started, or an event older than
+        RECENT in a resumed session) and everything at the first-start baseline is only recorded."""
         if key in self.told:
             return None
         self.told[key] = now
-        if self.baseline:
+        if self.baseline or stale:
             return None
         try:
             self.send(text)
         except Exception as e:
-            self.log(f"watchdog: sending failed ({text!r}): {e}")
+            n = self.failures[key] = self.failures.get(key, 0) + 1
+            self.log(f"watchdog: sending failed ({text!r}, try {n} of 3): {e}")
+            if n < 3:
+                del self.told[key]       # tried again next check
+            return None
         return text
 
     def check(self):
@@ -467,24 +494,27 @@ class CodexWatch:
             if ev is None:
                 continue
             repo = os.path.basename(r.meta["cwd"].rstrip("/")) or "?"
-            quiet = now - max(latest.get(sid, 0), r.mtime)
+            active = max(latest.get(sid, 0), r.mtime)
+            quiet = now - active
+            stale = active < self.started - 2 * self.idle or (ev["time"] or now) < now - RECENT
             base = f"{sid}:{ev['turn']}"
             if ev["type"] == "task_complete":
-                sent.append(self._tell(base + ":finished", _finished(repo, ev["message"]), now))
-                if quiet >= self.idle:
+                sent.append(self._tell(base + ":finished", _finished(repo, ev["message"]), now, stale))
+                if quiet >= self.idle and not r.meta["exec"]:   # a codex exec run ends with its process
                     sent.append(self._tell(base + ":idle", f"Codex idle {self.idle_min} min after finishing: {repo}",
-                                           now))
+                                           now, stale))
             elif ev["type"] == "turn_aborted":
                 if quiet >= ABORT_SETTLE:
                     reason = ev["reason"].replace("_", " ") or "unknown"
-                    sent.append(self._tell(base + ":aborted", f"Codex interrupted ({reason}): {repo}", now))
+                    sent.append(self._tell(base + ":aborted", f"Codex interrupted ({reason}): {repo}", now, stale))
             elif quiet >= self.idle and base + ":stopped" not in self.told:
                 if procs is False:
                     procs = self.procs()
                     if procs is None:
                         self.log("watchdog: codex process list failed; no stop alerts this round")
                 if procs is not None and not self._alive(r, procs):
-                    sent.append(self._tell(base + ":stopped", f"Codex stopped without finishing: {repo}", now))
+                    sent.append(self._tell(base + ":stopped", f"Codex stopped without finishing: {repo}", now,
+                                           stale))
         sent += self._hook_records(now)
         self.baseline = False
         self._save()
@@ -514,8 +544,10 @@ class CodexWatch:
             if now - t < HOOK_SETTLE:
                 continue
             repo = os.path.basename(str(rec.get("cwd") or "").rstrip("/")) or "?"
-            sent.append(self._tell(f"{sid}:{turn}:finished", _finished(repo, first_line(rec.get("first_line"))), now))
-            _unlink(f)
+            key = f"{sid}:{turn}:finished"
+            sent.append(self._tell(key, _finished(repo, first_line(rec.get("first_line"))), now))
+            if key in self.told:
+                _unlink(f)
         return sent
 
 

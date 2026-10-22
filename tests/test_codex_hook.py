@@ -133,3 +133,22 @@ def test_uninstall_removes_the_hook(tmp_path):
     run(["bash", str(kit / "install.sh"), "--apply"], env, timeout=180)
     run(["bash", str(kit / "install.sh"), "--uninstall"], env, timeout=180)
     assert not any("codex_watch_stop.py" in c for c in kit_cmds(home / ".codex" / "hooks.json", kit))
+
+
+def test_review1_hook_and_watchdog_redact_alike():
+    sys.path.insert(0, str(KIT / "watchdog"))
+    import re as _re
+    hook = HOOK.read_text()
+    wd = (KIT / "watchdog" / "watchdog.py").read_text()
+    pat = lambda s: s[s.index("SECRET_RE = re.compile("):s.index("\n\n", s.index("SECRET_RE = re.compile("))]
+    assert pat(hook) == pat(wd)
+
+
+def test_review1_a_broken_lib_still_prints_nothing(tmp_path):
+    import shutil
+    kit = tmp_path / "kit"
+    (kit / "hooks").mkdir(parents=True)
+    shutil.copy(HOOK, kit / "hooks" / "codex_watch_stop.py")          # no lib/ next to it
+    r = subprocess.run([sys.executable, str(kit / "hooks" / "codex_watch_stop.py")], input=json.dumps(STOP),
+                       capture_output=True, text=True, timeout=10)
+    assert r.returncode == 0 and r.stdout == "" and r.stderr == ""

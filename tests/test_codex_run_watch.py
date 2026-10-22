@@ -85,11 +85,27 @@ def test_turn_failed_with_exit_1_is_told_once_without_the_error_text(tmp_path, b
     assert "sk-not" not in json.dumps(beeper.sent)
 
 
-def test_error_event_with_exit_0_still_fails(tmp_path, beeper):
+def test_review1_an_error_event_with_exit_0_is_not_a_failure(tmp_path, beeper):
+    # codex exec exits 1 on any error it does not retry (exec lib.rs:1343-1359): a retried stream error with exit 0
+    # is a successful build, and the exit code is kept as it is
     home, kit, env, wt, task = setup(tmp_path, beeper, ERROR_EVENTS, rc=0)
     out = codex_run(kit, env, wt, task)
-    assert out.returncode == 1
-    assert sent_texts(beeper) == ["Codex build failed: t7-task (exit 0, error)"]
+    assert out.returncode == 0
+    assert sent_texts(beeper) == []
+
+
+def test_review1_events_are_private_and_named_after_the_task_without_extension(tmp_path, beeper):
+    import stat
+    home, kit, env, wt, task = setup(tmp_path, beeper, OK_EVENTS)
+    d = tmp_path / "a.b"
+    d.mkdir()
+    plain = d / "T5"
+    plain.write_text("x\n")
+    out = codex_run(kit, env, wt, plain)
+    assert out.returncode == 0, out.stderr
+    ev = d / "T5.codex.jsonl"
+    assert ev.is_file() and stat.S_IMODE(ev.stat().st_mode) == 0o600
+    assert not (tmp_path / "a.codex.jsonl").exists()
 
 
 def test_send_failure_does_not_hide_the_exit_code(tmp_path):

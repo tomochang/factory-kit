@@ -508,3 +508,110 @@ def test_the_watcher_reads_fixtures_without_prompt_text():
                               "parent_thread_id", "type", "turn_id", "reason", "started_at", "completed_at",
                               "last_agent_message"}, (f.name, sorted(p))
             assert "/Users/" not in line or "/Users/alice/" in line
+
+
+# --- found by the independent review (T18 review 1): each case is a counterexample it gave
+
+def test_review1_no_burst_of_old_transitions_after_the_watchdog_was_down(tmp_path):
+    w = World(tmp_path)
+    w.add("t9-vscode-main.jsonl")
+    w.add("t9-exec-stopped.jsonl")
+    started(w, "2026-10-21T17:00:00Z")              # state saved before both runs
+    w.now = epoch("2026-10-22T03:00:00Z")            # watchdog down 10 h, restarted
+    w.make()
+    assert w.at("2026-10-22T03:00:15Z") == []        # hours-old finish/idle/stop are recorded, not sent
+    assert w.run("2026-10-22T03:00:30Z", "2026-10-22T04:00:00Z", step=60) == []
+
+
+def test_review1_a_resumed_old_session_does_not_repeat_its_old_turn(tmp_path):
+    w = World(tmp_path)
+    r = w.add("parallel-app.jsonl")
+    started(w, "2026-10-22T08:14:00Z")
+    assert w.at("2026-10-22T08:30:00Z") == ["Codex idle 10 min after finishing: notes-app"]
+    w.sent.clear()
+    w.make()
+    w.watch.told.clear()                             # transitions forgotten after days
+    w.now = epoch("2026-10-26T09:00:00Z")
+    with open(r.path, "a") as f:                     # `codex resume` appends context before the next prompt
+        f.write(json.dumps({"timestamp": "2026-10-26T09:00:00Z", "type": "turn_context", "payload": {}}) + "\n")
+    os.utime(r.path, (w.now, w.now))
+    w.watch.check()
+    w.now += 900
+    w.watch.check()
+    assert w.sent == []
+
+
+def test_review1_more_secret_shapes_are_redacted():
+    for secret in ("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+                   "postgres://admin:Hunter2pass@db.example/x", "token=ghp_shorttoken123",
+                   "password: S3cr3t!Passw0rd", "github_pat_11ABCDEFG0123456789_abcdefghijk"):
+        out = first_line("see " + secret)
+        assert "[redacted]" in out, (secret, out)
+        for part in ("IOSFODNN7", "bPxRfiCY", "Hunter2pass", "shorttoken123", "S3cr3t", "0123456789_abc"):
+            assert part not in out, (secret, out)
+
+
+def test_review1_a_codex_exec_run_gets_finished_but_no_idle_message(tmp_path):
+    w = World(tmp_path)
+    r = w.add("t9-exec-stopped.jsonl")
+    r.records.append({"timestamp": "2026-10-21T17:56:00.000Z", "type": "event_msg",
+                      "payload": {"type": "task_complete", "turn_id": "01a15f9a-1180-7a21-9095-cb8cf96bfbd0",
+                                  "last_agent_message": "Build done."}})
+    started(w, "2026-10-21T17:54:50Z")
+    assert w.run("2026-10-21T17:55:05Z", "2026-10-21T19:00:00Z") == ["Codex finished: t9-inbox-zero - Build done."]
+
+
+def test_review1_turns_without_a_turn_id_are_each_told(tmp_path):
+    w = World(tmp_path)
+    r = w.add("parallel-app.jsonl")
+    for rec in r.records:
+        rec["payload"].pop("turn_id", None)
+    r.records += [{"timestamp": "2026-10-22T08:14:00.000Z", "type": "event_msg", "payload": {"type": "task_started"}},
+                  {"timestamp": "2026-10-22T08:15:00.000Z", "type": "event_msg",
+                   "payload": {"type": "task_complete", "last_agent_message": "Second."}}]
+    started(w, "2026-10-22T08:12:30Z")
+    assert w.run("2026-10-22T08:13:10Z", "2026-10-22T08:15:10Z", step=60) == [
+        "Codex finished: notes-app - Fixed the parser.", "Codex finished: notes-app - Second."]
+
+
+def test_review1_a_failed_send_is_tried_again_up_to_three_times(tmp_path):
+    w = World(tmp_path)
+    w.add("parallel-app.jsonl")
+    started(w, "2026-10-22T08:12:30Z")
+    tries = []
+
+    def flaky(text):
+        tries.append(text)
+        if len(tries) < 2:
+            raise RuntimeError("Beeper down")
+        w.sent.append(text)
+    w.watch.send = flaky
+    w.at("2026-10-22T08:13:10Z")
+    w.at("2026-10-22T08:13:25Z")
+    w.at("2026-10-22T08:13:40Z")
+    assert w.sent == ["Codex finished: notes-app - Fixed the parser."] and len(tries) == 2
+
+    def down(text):
+        tries.append(text)
+        raise RuntimeError("Beeper down")
+    w.watch.send = down
+    n = len(tries)
+    w.run("2026-10-22T08:23:10Z", "2026-10-22T08:30:00Z")     # idle message: 3 tries, then given up
+    assert len(tries) - n == 3
+
+
+def test_review1_big_records_and_a_huge_first_line_are_read(tmp_path):
+    w = World(tmp_path)
+    r = w.add("parallel-app.jsonl")
+    r.records.insert(2, {"timestamp": "2026-10-22T08:12:40.000Z", "type": "response_item",
+                         "payload": {"type": "function_call_output", "output": "x" * (3 << 20)}})
+    started(w, "2026-10-22T08:12:30Z")
+    assert w.at("2026-10-22T08:13:10Z") == ["Codex finished: notes-app - Fixed the parser."]
+    big = tmp_path / "sessions" / "2026" / "10" / "22" / "rollout-2026-10-22T08-00-00-big.jsonl"
+    big.write_text(json.dumps({"type": "session_meta", "payload": {"id": "big", "cwd": "/w/big",
+                                                                    "base_instructions": "y" * (5 << 20)}}) + "\n"
+                   + json.dumps({"timestamp": "2026-10-22T08:13:00Z", "type": "event_msg",
+                                 "payload": {"type": "task_complete", "turn_id": "b1", "last_agent_message": "ok"}})
+                   + "\n")
+    os.utime(big, (w.now, w.now))
+    assert w.at("2026-10-22T08:13:25Z") == ["Codex finished: ? - ok"]

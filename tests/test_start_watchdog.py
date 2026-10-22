@@ -74,5 +74,6 @@ def test_an_older_running_watchdog_is_named_with_the_restart_command(tmp_path):
         pin.write_text(hashlib.sha256(new.encode()).hexdigest() + "\n")
         r = start(tmp_path, pin)
         assert "older" in r.stderr and "pkill -f" in r.stderr and str(wd / "watchdog.py") in r.stderr
+        assert "pkill -f " + str(wd / "watchdog.py").replace(" ", "\\ ") in r.stderr    # quoted for the shell
     finally:
         sp.run(["pkill", "-f", str(wd / "watchdog.py")])

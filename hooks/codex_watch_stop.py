@@ -15,16 +15,20 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
-import kitenv  # noqa: E402
 
-SECRET_RE = re.compile(r"(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}"
-                       r"|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]+"
-                       r"|(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,})")
+SECRET_RE = re.compile(
+    r"(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}"
+    r"|AIza[0-9A-Za-z_-]{30,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]+"
+    r"|(?<=://)[^/\s:@]+:[^@\s]+(?=@)"                                   # user:password@ in URLs
+    r"|(?i:(?<=pass)(?:word)?\s*[:=]\s*\S+|(?<=secret)\s*[:=]\s*\S+|(?<=token)\s*[:=]\s*\S+"
+    r"|(?<=api_key)\s*[:=]\s*\S+|(?<=api-key)\s*[:=]\s*\S+|(?<=apikey)\s*[:=]\s*\S+)"
+    r"|(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,}"
+    r"|(?<![A-Za-z0-9/+=_-])(?=[A-Za-z0-9/+=_-]*\d)(?=[A-Za-z0-9/+=_-]*[a-z])(?=[A-Za-z0-9/+=_-]*[A-Z])"
+    r"[A-Za-z0-9/+=_-]{32,})")
 
 
 def first_line(text, limit=100):
-    """Same rule as watchdog.first_line: first non-empty line, secrets redacted, at most `limit` characters."""
+    """Same rule and SECRET_RE as watchdog.first_line (a test checks they match): first non-empty line, secrets redacted, at most `limit` characters."""
     if not isinstance(text, str):
         return ""
     for line in text.splitlines():
@@ -49,6 +53,8 @@ def main():
     sid, turn = str(data["session_id"]), str(data.get("turn_id") or "")
     rec = {"session_id": sid, "turn_id": turn, "cwd": str(data.get("cwd") or ""),
            "first_line": first_line(data.get("last_assistant_message")), "time": time.time()}
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+    import kitenv  # inside main: a broken lib/ must not print or fail the hook
     d = Path(kitenv.load()["ASK_ME_STATE"]) / "codex-watch" / "stops"
     d.mkdir(parents=True, exist_ok=True)
     os.chmod(d, 0o700)
