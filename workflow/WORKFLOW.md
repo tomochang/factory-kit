@@ -9,9 +9,9 @@ The owner answers in the terminal. Their `go T<n>` is the go for step 7. Nothing
 
 ## Phase A: before the go (research, no build)
 
-1. **Number first.** Before anything else, give the task the next free number. Read `~/factory/TASKS.md`, take
+1. **Number first.** Before anything else, give the task the next free number. Read `{{WORK_DIR}}/TASKS.md`, take
    the highest T number plus one, and add a row `| T<n> | <title> | numbered | <date> |`. Every session uses
-   this file (every session started in ~/factory), so numbers never clash. Reply
+   this file (every session started in {{WORK_DIR}}), so numbers never clash. Reply
    "T<n> received, researching" with the one-line request echoed back.
 2. **Research real use cases (imozuru).** Start a background agent that runs the `imozuru` skill on the request,
    with `~/research/<topic>/` as the place. Its required claims (map.md) must include all of these:
@@ -28,7 +28,7 @@ The owner answers in the terminal. Their `go T<n>` is the go for step 7. Nothing
    cite the real case it is based on, or say "assumption".
 4. **Spec and roadmap.** Write `SPEC.md` and `ROADMAP.md` from the templates. Every requirement and milestone
    names the KGI/KPI it serves and the real case it copies. These drafts live in
-   `~/factory/<repo>/` (create the repo with `git init` if needed) and stay uncommitted until the lock.
+   `{{WORK_DIR}}/<repo>/` (create the repo with `git init` if needed) and stay uncommitted until the lock.
 5. **Suggest.** Show the owner a short, phone-readable summary:
    - the best real case found
    - the KGI
@@ -66,7 +66,7 @@ The owner answers in the terminal. Their `go T<n>` is the go for step 7. Nothing
    the KGI can be measured locally. Otherwise, state in the test file how it is measured after delivery.
 10. **Build.** Implement until all tests pass. Push with `git push` only if the repo has a remote that
     the owner owns. Then:
-    - Run `python3 ~/factory/workflow/check_task.py ~/factory/<repo>` (or the worktree) and include its result.
+    - Run `python3 {{WORK_DIR}}/workflow/check_task.py {{WORK_DIR}}/<repo>` (or the worktree) and include its result.
     - Report T<n>: what changed and where, test results, KGI status, and REA limitations.
     - Set TASKS.md to `done`.
 

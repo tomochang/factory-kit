@@ -113,3 +113,24 @@ def test_staged_content_is_scanned_even_when_the_working_tree_is_clean(tmp_path)
     (r / "a.md").write_text("clean now\n")
     out = scan(tmp_path, r, "--no-live")
     assert out.returncode == 1 and "phone number at a.md:1 (staged)" in out.stdout
+
+
+def test_locked_docs_in_docs_and_the_licence_line_may_name_the_owner_account(tmp_path):
+    """T14: task docs moved to docs/t<n>/, and LICENSE must name the copyright holder (the repo's own account)."""
+    home = live_home(tmp_path)
+    r = repo(tmp_path, {
+        "LICENSE": "MIT License\n\nCopyright (c) 2026 octokitten\n",
+        "docs/t14/SPEC.md": "R4: LICENSE copyright 2026 octokitten. Out of scope: ~/vault.\n",
+        "docs/t14/REFERENCE.md": "Evidence: ~/vault/notes.md\n",
+        "README.md": "Ask octokitten.\n",
+        "docs/guide.md": "See ~/vault.\n",
+        "docs/t14/notes.md": "octokitten\n",
+    })
+    subprocess.run(["git", "-C", str(r), "remote", "add", "origin", "https://github.com/octokitten/kit.git"], check=True)
+    out = scan(tmp_path, r, home=home)
+    assert out.returncode == 1, out.stdout
+    assert "GitHub account at README.md:1" in out.stdout
+    assert "private folder path at docs/guide.md:1" in out.stdout
+    assert "at docs/t14/notes.md:1" in out.stdout                    # only the locked docs are exempt
+    for name in ("LICENSE", "docs/t14/SPEC.md", "docs/t14/REFERENCE.md"):
+        assert name + ":" not in out.stdout, out.stdout

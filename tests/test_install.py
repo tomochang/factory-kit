@@ -44,6 +44,7 @@ def test_print_mode_shows_every_change_and_writes_nothing(tmp_path):
         assert f"would link {home}/.agents/skills/{s}" in text
     assert "/hooks" in text and "trust" in text                  # the Codex hook trust step
     assert "--apply" in text
+    assert f"would render {home}/factory/workflow/WORKFLOW.md" in text
     assert tree(home) == before
     assert not (kit / "generated").exists()
 
@@ -68,7 +69,13 @@ def test_apply_links_skills_for_both_tools_and_sets_up_the_factory(tmp_path):
             assert link.resolve() == (kit / "skills" / s).resolve()
             assert (link / "SKILL.md").is_file()
     work = home / "factory"
-    assert (work / "workflow").resolve() == (kit / "workflow").resolve()
+    wf = work / "workflow"                                       # rendered, not a link into the kit (T14 R1)
+    assert wf.is_dir() and not wf.is_symlink()
+    for f in ("WORKFLOW.md", "WORKFLOW-remote.md", "README.md", "check_task.py", "templates/KGI.md",
+              "templates/SPEC.md", "templates/ROADMAP.md", "templates/REFERENCE.md"):
+        assert (wf / f).is_file(), f
+    assert "Read `~/factory/TASKS.md`" in (wf / "WORKFLOW.md").read_text()
+    assert not (wf / "test_check_task.py").exists()
     assert "WORKFLOW-remote.md" in (work / "CLAUDE.md").read_text()
     assert "WORKFLOW-remote.md" in (work / "AGENTS.md").read_text()
     assert "| T | Title | State | Date |" in (work / "TASKS.md").read_text()
@@ -143,6 +150,7 @@ def test_uninstall_removes_only_what_the_kit_added(tmp_path):
     assert mine.is_dir() and not mine.is_symlink()                # not ours: kept
     assert "factory-kit" not in (home / ".zshrc").read_text()
     assert "my task" in (home / "factory" / "TASKS.md").read_text()  # the owner's data stays
+    assert not (home / "factory" / "workflow").exists()           # what install rendered is gone
     assert not (kit / "generated").exists()
 
 
@@ -167,3 +175,55 @@ def test_generated_files_hold_no_token(tmp_path):
         assert "fake-token-for-tests" not in p.read_text(), p
     for p in (home / ".claude" / "settings.json", home / ".codex" / "hooks.json", home / ".zshrc"):
         assert "fake-token-for-tests" not in p.read_text(), p
+
+
+def workflow_text(work):
+    return (work / "workflow" / "WORKFLOW.md").read_text()
+
+
+def test_a_work_folder_outside_home_is_named_by_its_absolute_path(tmp_path):
+    home, kit, env = setup_install(tmp_path)
+    work = tmp_path / "elsewhere" / "shop"
+    env["WORK_DIR"] = str(work)
+    out = install(kit, env, "--apply")
+    assert out.returncode == 0, out.stdout + out.stderr
+    text = workflow_text(work)
+    assert f"Read `{work.resolve()}/TASKS.md`" in text and "~/factory" not in text
+    assert not (home / "factory").exists()
+
+
+def test_an_old_workflow_link_into_the_kit_is_replaced_by_rendered_files(tmp_path):
+    home, kit, env = setup_install(tmp_path)
+    (home / "factory").mkdir()
+    (home / "factory" / "workflow").symlink_to(kit / "workflow")   # what T13's install.sh made
+    out = install(kit, env, "--apply")
+    assert out.returncode == 0, out.stdout + out.stderr
+    wf = home / "factory" / "workflow"
+    assert wf.is_dir() and not wf.is_symlink()
+    assert "{{WORK_DIR}}" in (kit / "workflow" / "WORKFLOW.md").read_text()  # the kit's own copy is untouched
+    assert "{{" not in workflow_text(home / "factory")
+
+
+def test_a_workflow_folder_the_kit_did_not_render_is_kept(tmp_path):
+    home, kit, env = setup_install(tmp_path)
+    mine = home / "factory" / "workflow"
+    mine.mkdir(parents=True)
+    (mine / "WORKFLOW.md").write_text("my own workflow\n")
+    out = install(kit, env, "--apply")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert f"skip: {mine} exists" in out.stdout
+    assert (mine / "WORKFLOW.md").read_text() == "my own workflow\n"
+    assert install(kit, env, "--uninstall").returncode == 0
+    assert (mine / "WORKFLOW.md").read_text() == "my own workflow\n"
+
+
+def test_reinstall_updates_rendered_files_but_keeps_the_owners_files(tmp_path):
+    home, kit, env = setup_install(tmp_path)
+    assert install(kit, env, "--apply").returncode == 0
+    work = home / "factory"
+    (work / "CLAUDE.md").write_text("my edits\n")
+    with open(kit / "workflow" / "WORKFLOW.md", "a") as f:
+        f.write("New step from a kit update.\n")
+    assert install(kit, env, "--apply").returncode == 0
+    assert workflow_text(work).endswith("New step from a kit update.\n")
+    assert (work / "CLAUDE.md").read_text() == "my edits\n"

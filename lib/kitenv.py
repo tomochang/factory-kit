@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Kit settings: <kit>/factory.env (or the file named by FACTORY_ENV), with the real environment winning.
 
-Like the official Telegram channel plugin (T13-REFERENCE.md 1-3): one per-user file outside git, real env wins,
+Like the official Telegram channel plugin (docs/t13/REFERENCE.md 1-3): one per-user file outside git, real env wins,
 and a missing value is reported with the file's name. `$HOME` and `~` in values are expanded.
 
 Usage: kitenv.py json | get KEY | check

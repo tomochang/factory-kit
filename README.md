@@ -62,7 +62,12 @@ npm, Python 3.9+, git, jq. Codex CLI only for Codex builds. For the tests: pytes
    and Codex hooks and the Codex trust records, the Claude Code / Codex versions, the dev-channel setup and the
    watchdog. It sends nothing.
 
-To take the kit out again: `bash install.sh --uninstall` (removes only what the kit added; your work folder stays).
+The work folder is `WORK_DIR` in factory.env (default `~/factory`). install.sh renders the kit's `workflow/`
+files and `templates/factory/` into it with that folder filled in, so the workflow names your folder; edit them in
+the kit and run `install.sh --apply` again to update them.
+
+To take the kit out again: `bash install.sh --uninstall` (removes only what the kit added, including the rendered
+`workflow/` folder; your TASKS.md and task repos stay).
 
 ## Use
 
@@ -77,7 +82,7 @@ worktrees; a build can also run in Codex:
 
     ~/factory-kit/foreman/codex-run.sh /private/tmp/t7-wt /private/tmp/t7-task.md
 
-Without the phone, `cd ~/factory && claude` (or `codex`) follows the same workflow in the terminal.
+Without the phone, `cd ~/factory && claude` (your `WORK_DIR`) (or `codex`) follows the same workflow in the terminal.
 
 ### Check it works
 
@@ -90,12 +95,22 @@ Send `F: ping` from your phone while the foreman runs: it should answer in your 
 Runs `scan_private.py`, the channel tests (`node --test`), the Python tests (pytest: config, guards with Codex
 `apply_patch`, install in a temporary HOME, doctor against a fake Beeper, ask-me, the Stop hook, safe-push,
 watchdog, start-watchdog), the workflow checker's tests and `tests/test_clean_install.sh` (a clean install into a
-temporary HOME with a fake Beeper: install, doctor, an `F:` message through the channel, the spec reply). Tests
+temporary HOME with a fake Beeper: install, doctor, an `F:` message through the channel, the spec reply, then a custom `WORK_DIR`). Tests
 never use your HOME, Beeper or agent configs. `foreman/channel/test/smoke-live.mjs` is a manual test that sends one
 real message to your own chat.
+
+CI: `.github/workflows/test.yml` runs `tests/run_all.sh` on a GitHub macOS runner for every push and pull
+request (no secrets).
+
+Task records: `docs/t<n>/` holds each kit task's locked KGI, spec, roadmap and reference (T13: the kit, T14:
+work folder, docs, CI, licence).
 
 ## Update
 
     cd ~/factory-kit && git pull && bash install.sh --apply
 
 Then trust any changed hooks in Codex (`/hooks`) and restart the foreman.
+
+## Licence
+
+MIT, see `LICENSE`.

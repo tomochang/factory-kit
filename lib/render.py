@@ -8,9 +8,19 @@
     channel-instructions.txt  what the foreman session is told about the channel
 
 Templates use {{NAME}} placeholders; an unknown name is an error. Usage: render.py [--out DIR]
+
+`render.py --work print|apply|uninstall` handles the work folder (WORK_DIR) instead:
+    workflow/      the kit's workflow/ (WORKFLOW*.md, README.md, check_task.py, templates/), rendered with the work
+                   folder filled in. Rewritten on every apply; a manifest (.factory-kit-rendered) lists what the
+                   kit wrote, so uninstall removes exactly that. A workflow folder the kit did not render is kept.
+                   An old link into the kit's workflow/ (T13 installs) is replaced.
+    CLAUDE.md, AGENTS.md, TASKS.md   from templates/factory/, created only when missing. Uninstall removes
+                   CLAUDE.md and AGENTS.md only while they are unchanged; TASKS.md (the owner's data) always stays.
+The work folder is written as "~/<path>" when it is under HOME (so the default stays "~/factory"), else absolute.
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -76,11 +86,151 @@ def render_all(cfg, out):
     return written
 
 
+WORK_PLACEHOLDER = "{{WORK_DIR}}"
+WORKFLOW_SKIP = {"test_check_task.py", "__pycache__", ".DS_Store"}
+OWNER_FILES = ("CLAUDE.md", "AGENTS.md", "TASKS.md")
+KEEP_ALWAYS = {"TASKS.md"}
+MANIFEST = ".factory-kit-rendered"
+
+
+def work_name(cfg):
+    """How the rendered files name the work folder: ~/<path> under HOME, else the absolute path."""
+    home = os.path.abspath(os.environ.get("HOME") or os.path.expanduser("~"))
+    work = cfg["WORK_DIR"]
+    if work == home:
+        return "~"
+    if work.startswith(home.rstrip("/") + "/"):
+        return "~/" + work[len(home.rstrip("/")) + 1:]
+    return work
+
+
+def fill(data, name):
+    try:
+        return data.decode("utf-8").replace(WORK_PLACEHOLDER, name).encode("utf-8")
+    except UnicodeDecodeError:
+        return data
+
+
+def workflow_files(cfg):
+    """[(relative path in workflow/, bytes, mode)] rendered from the kit's workflow/."""
+    src = Path(cfg["KIT"]) / "workflow"
+    name = work_name(cfg)
+    out = []
+    for p in sorted(src.rglob("*")):
+        rel = p.relative_to(src)
+        if any(part in WORKFLOW_SKIP for part in rel.parts) or not p.is_file():
+            continue
+        out.append((rel.as_posix(), fill(p.read_bytes(), name), p.stat().st_mode & 0o777))
+    return out
+
+
+def owner_files(cfg):
+    tdir = Path(cfg["KIT"]) / "templates" / "factory"
+    return [(f, fill((tdir / f).read_bytes(), work_name(cfg))) for f in OWNER_FILES]
+
+
+def read_manifest(wf):
+    try:
+        return [line for line in (wf / MANIFEST).read_text().splitlines() if line.strip()]
+    except OSError:
+        return []
+
+
+def is_kit_link(wf, cfg):
+    return wf.is_symlink() and os.path.realpath(wf) == os.path.realpath(Path(cfg["KIT"]) / "workflow")
+
+
+def work_apply(cfg, mode):
+    work = Path(cfg["WORK_DIR"])
+    wf = work / "workflow"
+    files = workflow_files(cfg)
+    if mode == "print":
+        if wf.exists() and not wf.is_symlink() and not (wf / MANIFEST).is_file():
+            print(f"skip: {wf} exists")
+        else:
+            if is_kit_link(wf, cfg):
+                print(f"would replace the link {wf} with rendered files")
+            for rel, _, _ in files:
+                print(f"would render {wf / rel}")
+        for f, _ in owner_files(cfg):
+            dest = work / f
+            print(f"skip: {dest} exists" if dest.exists() or dest.is_symlink() else f"would create {dest}")
+        return 0
+    work.mkdir(parents=True, exist_ok=True)
+    if is_kit_link(wf, cfg):
+        wf.unlink()
+        print(f"replaced the link {wf} with rendered files")
+    if (wf.exists() or wf.is_symlink()) and not (wf / MANIFEST).is_file():
+        print(f"skip: {wf} exists (not rendered by the kit)")
+    else:
+        old = set(read_manifest(wf))
+        for rel, data, perm in files:
+            dest = wf / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+            dest.chmod(perm)
+        new = [rel for rel, _, _ in files]
+        for rel in sorted(old - set(new)):
+            remove_file(wf, rel)
+        (wf / MANIFEST).write_text("".join(r + "\n" for r in new))
+        print(f"rendered: {wf} ({len(new)} files, work folder {work_name(cfg)})")
+    for f, data in owner_files(cfg):
+        dest = work / f
+        if dest.exists() or dest.is_symlink():
+            print(f"skip: {dest} exists")
+        else:
+            dest.write_bytes(data)
+            print(f"created: {dest}")
+    return 0
+
+
+def remove_file(wf, rel):
+    p = wf / rel
+    if p.is_file() or p.is_symlink():
+        p.unlink()
+    d = p.parent
+    while d != wf and d.is_dir() and not any(d.iterdir()):
+        d.rmdir()
+        d = d.parent
+
+
+def work_uninstall(cfg):
+    work = Path(cfg["WORK_DIR"])
+    wf = work / "workflow"
+    if is_kit_link(wf, cfg):
+        wf.unlink()
+        print(f"unlinked: {wf}")
+    elif (wf / MANIFEST).is_file():
+        for rel in read_manifest(wf):
+            remove_file(wf, rel)
+        (wf / MANIFEST).unlink()
+        if not any(wf.iterdir()):
+            wf.rmdir()
+            print(f"removed: {wf}")
+        else:
+            print(f"removed the kit's files from {wf} (your other files there are kept)")
+    for f, data in owner_files(cfg):
+        dest = work / f
+        if f in KEEP_ALWAYS or not dest.is_file() or dest.is_symlink():
+            continue
+        if dest.read_bytes() == data:
+            dest.unlink()
+            print(f"removed: {dest} (unchanged since install)")
+        else:
+            print(f"kept: {dest} (you changed it)")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out")
+    ap.add_argument("--work", choices=("print", "apply", "uninstall"))
     a = ap.parse_args(argv)
     cfg = kitenv.load()
+    if a.work == "uninstall":
+        return work_uninstall(cfg)
+    if a.work:
+        return work_apply(cfg, a.work)
     for p in kitenv.problems(cfg):
         print("factory-kit: " + p, file=sys.stderr)
         return 2

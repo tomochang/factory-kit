@@ -100,3 +100,50 @@ def test_owner_only_policy_is_not_shipped():
         text = (KIT / p).read_text()
         for word in ("act.sh", "MAIL_APPROVED", "cdp-send-checklist", "mail-send-approval", "claude-vps"):
             assert word not in text, (p, word)
+
+
+# --- T14: work folder placeholder, docs layout, LICENSE, CI
+
+TASK_DOCS = ("KGI.md", "SPEC.md", "ROADMAP.md", "REFERENCE.md")
+
+
+def test_task_docs_live_in_docs_and_none_at_the_root():
+    for t in ("t13", "t14"):
+        for name in TASK_DOCS:
+            assert (KIT / "docs" / t / name).is_file(), f"docs/{t}/{name}"
+    at_root = sorted(p.name for p in KIT.iterdir() if re.match(r"T\d+-.*\.md$", p.name))
+    assert at_root == [], at_root
+
+
+def test_no_link_points_at_the_old_root_task_docs():
+    from conftest import kit_files
+    for f in kit_files():
+        p = KIT / f
+        if f.startswith("docs/") or not p.is_file() or "node_modules" in f or f == "tests/test_scan_private.py":
+            continue
+        text = p.read_text(errors="replace")
+        assert not re.search(r"T13-(KGI|SPEC|ROADMAP|REFERENCE)\.md", text), f
+
+
+def test_licence_is_mit_with_a_copyright_line_and_readme_names_it():
+    text = (KIT / "LICENSE").read_text()
+    assert text.startswith("MIT License")
+    assert re.search(r"^Copyright \(c\) 2026 \S+$", text, re.M)
+    assert "Permission is hereby granted, free of charge" in text
+    assert re.search(r"^## Licen[cs]e", (KIT / "README.md").read_text(), re.M)
+    assert "LICENSE" in (KIT / "README.md").read_text()
+
+
+def test_ci_runs_every_test_on_macos_without_secrets():
+    text = (KIT / ".github" / "workflows" / "test.yml").read_text()
+    for word in ("push", "pull_request", "macos-latest", "actions/checkout@v4", "actions/setup-python@v5",
+                 "actions/setup-node@v4", "node-version: 20", "pytest", "bash tests/run_all.sh"):
+        assert word in text, word
+    assert "secrets." not in text
+
+
+def test_workflow_files_use_the_work_folder_placeholder():
+    for f in ("workflow/WORKFLOW.md", "workflow/WORKFLOW-remote.md", "workflow/README.md"):
+        text = (KIT / f).read_text()
+        assert "{{WORK_DIR}}" in text, f
+        assert "~/factory" not in text, f

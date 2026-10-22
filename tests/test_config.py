@@ -1,6 +1,6 @@
 """Config from factory.env (R2) and the files generated from templates (R1, R3).
 
-Reference behaviour copied (T13-REFERENCE.md 1-3): one per-user file outside the repo, real environment wins,
+Reference behaviour copied (docs/t13/REFERENCE.md 1-3): one per-user file outside the repo, real environment wins,
 a missing value is reported with the file's name, and generated configs never carry the token.
 """
 import json
