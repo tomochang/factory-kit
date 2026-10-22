@@ -25,11 +25,11 @@ Labels: **[O]** observed in code, **[I]** inferred, **[U]** unknown.
 All runs: `npm_config_cache=/private/tmp/t13-ref/npm-cache npx -y rea-agents@6.7.0 ...`, evidence kept outside
 the repo in `/private/tmp/t13-ref/`.
 
-- `import-reference-source <telegram dir>` → HistoricalSourceGraph, root sha256 `0c00ab0a...e109`, 15 entries,
+- `import-reference-source /private/tmp/t13-ref/repo/external_plugins/telegram` → HistoricalSourceGraph, root sha256 `0c00ab0a...e109`, 15 entries,
   11 import relationships, `vcs.head` = the pin. Saved at `rea-import-full.json`
   (sha256 `dc467f1d328fdbed5f951cf4391c4d0d1403d41111d32d3e382ea5fc6f7679cf`). Result: ok, but
   `inventory_state: partial` and no `ev_` ID (this command emits a graph, not Evidence).
-- `analyze-javascript-application <telegram dir> --artifact-format directory` →
+- `analyze-javascript-application /private/tmp/t13-ref/repo/external_plugins/telegram --artifact-format directory` →
   `ev_636de8be2a9a863703a86565e33c49d4dea8c868e0b4479a22c661d59bde0fe9`, saved at `rea-js-app.json`
   (sha256 `8e7cc77955aae96535ab548e10de34a421da8a3e1062bc54b577e67b3cbe1a8c`). 1 parsed source file
   (server.ts), 2923 semantic nodes, 964 unknowns. Result: ok, confidence `derived`, semantic coverage partial.
