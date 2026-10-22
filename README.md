@@ -11,12 +11,12 @@ The kit holds the whole foreman flow:
 |-------|--------------|
 | `foreman/foreman.sh` | starts the foreman: one Claude Code session in your work folder whose inbox is your own WhatsApp chat |
 | `foreman/channel/` | the `whatsapp` channel (MCP, `claude/channel`): `F:` messages become tasks, the reply tool answers; Beeper is one module (`beeper-transport.mjs`) |
-| `foreman/factory_guard.py`, `hooks/security-*.sh` | guards for Claude Code and Codex: no git writes or edits in protected folders, no destructive commands, no secrets in files; they read Codex `apply_patch` edits too |
+| `foreman/factory_guard.py`, `hooks/security-*.sh`, `hooks/guard_bash.py` | guards for Claude Code and Codex: no writes (git or any other tool) or edits in protected folders, no destructive commands, no secret reads, no secrets in files; Bash commands are parsed (wrappers, `bash -c`, `eval`, quoted text as data, ported from cc-safety-net, see NOTICE); they read Codex `apply_patch` edits too |
 | `hooks/ask_me_stop.py` | Stop hook: a turn that ends with a question is sent back once, to ask on your phone instead |
 | `scripts/ask-me.py` | asks you on your phone and returns your reply; `--tell` for reports; `--check` for doctor |
 | `scripts/safe-push.sh` | pushes a worktree's commits safely (clean, rebased, tested) |
 | `watchdog/watchdog.py` | messages you when the foreman stops, restarts or its channel goes quiet (started pinned by `foreman/start-watchdog.sh`) |
-| `foreman/codex-run.sh` | runs a build in Codex: `command codex exec --cd <worktree>` |
+| `foreman/codex-run.sh` | runs a build in Codex: `command codex exec --cd <worktree>`; `CODEX_SANDBOX=1` in factory.env adds `--sandbox workspace-write` (then git commit and ask-me don't work inside the build) |
 | `skills/` | `imozuru`, `foreman`, `ask-me`, `safe-push`, linked into both `~/.claude/skills` and `~/.agents/skills` |
 | `install.sh`, `doctor.sh` | install (dry run first) and check |
 
