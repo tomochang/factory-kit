@@ -398,8 +398,5 @@ def test_shared_checkout_on_another_branch_is_left_alone(tmp_path):
     assert git(main, "rev-parse", "HEAD").stdout == before
     assert git(main, "symbolic-ref", "--short", "HEAD").stdout.strip() == "experiment"
 
-
-def test_repo_ignores_claude_worktrees_and_unions_interactions():
-    assert git(ROOT, "check-ignore", "-q", ".claude/worktrees/x/a.txt", check=False).returncode == 0
-    out = git(ROOT, "check-attr", "merge", "private/interactions/2026-10.jsonl").stdout
-    assert out.strip().endswith("union")
+# (The original suite also checked its own repo's .gitignore/.gitattributes; that is repo policy, not
+# safe-push behaviour, so it is not shipped.)

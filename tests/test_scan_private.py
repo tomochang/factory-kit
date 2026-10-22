@@ -5,7 +5,9 @@ import sys
 from conftest import KIT, base_env, run
 
 SCAN = str(KIT / "scan_private.py")
-SLACKISH = "xo" + "xb-1234567890-abcdefghij"  # built at runtime so this file holds no token-shaped string
+# built at runtime so this file itself holds none of these shapes
+SLACKISH = "xo" + "xb-1234567890-abcdefghij"
+PRIV_ROOM = "!PrivRoom12345" + ":beeper.local"
 
 
 def repo(tmp_path, files):
@@ -36,10 +38,10 @@ def test_clean_repo_passes(tmp_path):
 
 
 def test_generic_patterns_are_found_without_printing_them(tmp_path):
-    secret_chat = "!Qw3rTy9Zx81Lm:beeper.local"
-    phone = "+447700900123"
+    secret_chat = "!Qw3rTy9Zx81Lm" + ":beeper.local"
+    phone = "+44" + "7700900123"
     r = repo(tmp_path, {"a.mjs": f"const CHAT = '{secret_chat}'\n", "b.md": f"call {phone}\n",
-                        "c.json": '{"args": ["/Users/somebody/repo/x.mjs"]}\n',
+                        "c.json": '{"args": ["/Users' + '/somebody/repo/x.mjs"]}\n',
                         "d.sh": f"TOKEN={SLACKISH}\n"})
     out = scan(tmp_path, r, "--no-live")
     assert out.returncode == 1
@@ -72,7 +74,7 @@ def live_home(tmp_path):
         '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "python3 %s/vault/hooks/stop.py"}]}]}}'
         % home)
     (home / "vault" / "scripts" / "ask-me.py").write_text(
-        'CHAT = os.environ.get("ASK_ME_CHAT", "!PrivRoom12345:beeper.local")  # WhatsApp: Zorrino Quill (self)\n'
+        'CHAT = os.environ.get("ASK_ME_CHAT", "%s")  # WhatsApp: Zorrino Quill (self)\n' % PRIV_ROOM +
         'OWNER_WORDS = {"zorrino", "quill"}\n')
     (home / "vault" / "credentials" / "beeper-token").write_text("tok-SUPER-private-998877\n")
     return home
@@ -81,7 +83,7 @@ def live_home(tmp_path):
 def test_real_values_from_the_live_config_are_found(tmp_path):
     home = live_home(tmp_path)
     r = repo(tmp_path, {
-        "a.py": 'CHAT = "!PrivRoom12345:beeper.local"\n',
+        "a.py": 'CHAT = "%s"\n' % PRIV_ROOM,
         "b.md": "Ask Zorrino before pushing.\n",
         "c.sh": 'TOKEN_FILE="$HOME/vault/credentials/beeper-token"\n',
         "d.txt": "tok-SUPER-private-998877\n",
@@ -102,3 +104,12 @@ def test_the_kit_repo_itself_is_clean():
     out = run([sys.executable, SCAN], env=None, cwd=KIT)
     assert out.returncode == 0, out.stdout
     assert "0 findings" in out.stdout
+
+
+def test_staged_content_is_scanned_even_when_the_working_tree_is_clean(tmp_path):
+    """What a commit holds is the index; a value staged and then removed only from the file still counts."""
+    r = repo(tmp_path, {"a.md": "call " + "+44" + "7700900111\n"})
+    subprocess.run(["git", "add", "a.md"], cwd=r, check=True)
+    (r / "a.md").write_text("clean now\n")
+    out = scan(tmp_path, r, "--no-live")
+    assert out.returncode == 1 and "phone number at a.md:1 (staged)" in out.stdout

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Run the kit's safe-push.sh from this skill folder, also through the ~/.claude/skills or ~/.agents/skills link.
+D="$(cd "$(dirname "$0")" && pwd -P)"
+exec bash "$D/../../../scripts/safe-push.sh" "$@"

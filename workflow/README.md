@@ -3,7 +3,9 @@
 The ten-step workflow every factory task follows: number → real-use research (imozuru) → KGI → spec and roadmap
 → suggest → refine → lock on go → REA on the best system → tests first → build. Full text: `WORKFLOW.md`.
 
-- `~/factory/CLAUDE.md` imports `WORKFLOW.md`, so every Claude Code session started in `~/factory` follows it.
+- `WORKFLOW-remote.md` is the same workflow for a factory driven from the owner's phone (WhatsApp `F: go`,
+  ask-me, safe-push, Codex builds through codex-run.sh). The kit's installer makes `~/factory/CLAUDE.md` import it.
+- `~/factory/CLAUDE.md` imports a workflow file, so every Claude Code session started in `~/factory` follows it.
   A running session picks up changes only after a restart.
 - `~/factory/TASKS.md` is the shared task-number list.
 - `templates/` has KGI.md, SPEC.md, ROADMAP.md and REFERENCE.md to copy into a task repo.

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "whatsapp": {
+      "command": "{{NODE}}",
+      "args": ["{{KIT}}/foreman/channel/whatsapp-channel.mjs"],
+      "env": {
+        "FACTORY_ENV": "{{ENV_FILE}}",
+        "FACTORY_INSTRUCTIONS": "{{GENERATED}}/channel-instructions.txt"
+      }
+    }
+  }
+}

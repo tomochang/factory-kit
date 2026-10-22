@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "test -f '{{KIT}}/hooks/ask_me_stop.py' && python3 '{{KIT}}/hooks/ask_me_stop.py' || true", "timeout": 10}
+        ]
+      }
+    ]
+  }
+}

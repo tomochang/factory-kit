@@ -176,6 +176,28 @@ def files(root):
     return [f for f in r.stdout.split("\0") if f]
 
 
+def staged(root):
+    """{path: bytes} of the index (what the next commit holds) - it can differ from the working tree."""
+    r = subprocess.run(["git", "ls-files", "-s", "-z"], capture_output=True, cwd=root)
+    entries = [e.decode("utf-8", "replace") for e in r.stdout.split(b"\0") if e]
+    blobs = [(e.split("\t", 1)[1], e.split()[1]) for e in entries if "\t" in e and not e.startswith("160000")]
+    if not blobs:
+        return {}
+    batch = subprocess.run(["git", "cat-file", "--batch"], input="".join(h + "\n" for _, h in blobs).encode(),
+                           capture_output=True, cwd=root).stdout
+    out, pos = {}, 0
+    for path, _ in blobs:
+        nl = batch.index(b"\n", pos)
+        size = int(batch[pos:nl].split()[2])
+        out[path] = batch[nl + 1:nl + 1 + size]
+        pos = nl + 1 + size + 1
+    return out
+
+
+def decode(raw):
+    return "" if b"\0" in raw[:4096] else raw.decode("utf-8", "replace")
+
+
 def scan_text(name, text, v):
     found = []
     locked = bool(LOCKED_DOCS.match(os.path.basename(name)))
@@ -221,15 +243,14 @@ def main(argv=None):
             if line.strip():
                 v.add(line.strip(), "listed value")
     names = a.paths or files(a.root)
+    index = {} if a.paths else staged(a.root)
     found = []
     for n in names:
         p = Path(n) if os.path.isabs(n) or a.paths else Path(a.root) / n
-        if p.is_symlink() or not p.is_file():
-            text = ""
-        else:
-            raw = p.read_bytes()
-            text = "" if b"\0" in raw[:4096] else raw.decode("utf-8", "replace")
-        found += scan_text(n, text, v)
+        raw = b"" if p.is_symlink() or not p.is_file() else p.read_bytes()
+        found += scan_text(n, decode(raw), v)
+        if n in index and index[n] != raw:  # staged content differs: scan what would be committed too
+            found += [(w + " (staged)", k) for w, k in scan_text(n, decode(index[n]), v)]
     for where, kind in found:
         print("FOUND %s at %s" % (kind, where))
     print("scan_private: %d files, %d real values and %d private folders checked, %d findings"

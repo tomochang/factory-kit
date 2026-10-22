@@ -5,6 +5,7 @@ Every new factory task follows these ten steps, in order. "The owner" is the per
 Never send to other people, delete, pay, or push to someone else's repo.
 
 The owner answers in the terminal. Their `go T<n>` is the go for step 7. Nothing else counts as the go.
+(For a factory that takes tasks from the owner's phone over WhatsApp, use `WORKFLOW-remote.md` instead.)
 
 ## Phase A: before the go (research, no build)
 

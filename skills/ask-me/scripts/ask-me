@@ -1,0 +1,4 @@
+#!/bin/sh
+# Run the kit's ask-me.py from this skill folder, also through the ~/.claude/skills or ~/.agents/skills link.
+D="$(cd "$(dirname "$0")" && pwd -P)"
+exec python3 "$D/../../../scripts/ask-me.py" "$@"

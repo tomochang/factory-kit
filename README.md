@@ -1,39 +1,101 @@
 # factory-kit
 
-A software factory for Claude Code. Every task goes through the same ten steps:
-number → real-use research (imozuru) → KGI → spec and roadmap → suggest → refine → lock on your go
-→ REA on the best existing system → tests first → build. Full text: `workflow/WORKFLOW.md`.
+A software factory for Claude Code and Codex that you can drive from your phone. Every task goes through the same
+ten steps: number → real-use research (imozuru) → KGI → spec and roadmap → suggest → refine → lock on your go →
+REA on the best existing system → tests first → build. Full text: `workflow/WORKFLOW.md` (terminal) and
+`workflow/WORKFLOW-remote.md` (WhatsApp).
 
-## Install
+The kit holds the whole foreman flow:
 
-Needs: Claude Code, git, Python 3.10+ (or `uv`), Node (for `npx rea-agents` in step 8).
+| Piece | What it does |
+|-------|--------------|
+| `foreman/foreman.sh` | starts the foreman: one Claude Code session in your work folder whose inbox is your own WhatsApp chat |
+| `foreman/channel/` | the `whatsapp` channel (MCP, `claude/channel`): `F:` messages become tasks, the reply tool answers; Beeper is one module (`beeper-transport.mjs`) |
+| `foreman/factory_guard.py`, `hooks/security-*.sh` | guards for Claude Code and Codex: no git writes or edits in protected folders, no destructive commands, no secrets in files; they read Codex `apply_patch` edits too |
+| `hooks/ask_me_stop.py` | Stop hook: a turn that ends with a question is sent back once, to ask on your phone instead |
+| `scripts/ask-me.py` | asks you on your phone and returns your reply; `--tell` for reports; `--check` for doctor |
+| `scripts/safe-push.sh` | pushes a worktree's commits safely (clean, rebased, tested) |
+| `watchdog/watchdog.py` | messages you when the foreman stops, restarts or its channel goes quiet (started pinned by `foreman/start-watchdog.sh`) |
+| `foreman/codex-run.sh` | runs a build in Codex: `command codex exec --cd <worktree>` |
+| `skills/` | `imozuru`, `foreman`, `ask-me`, `safe-push`, linked into both `~/.claude/skills` and `~/.agents/skills` |
+| `install.sh`, `doctor.sh` | install (dry run first) and check |
 
-    git clone <this repo> ~/factory-kit
-    bash ~/factory-kit/install.sh
+All personal and machine values live in one file, `factory.env`, which git ignores. `scan_private.py` keeps
+personal values out of the repo.
 
-`install.sh` does this, and never overwrites a file that already exists:
+## Needs
 
-- copies the `imozuru` research skill to `~/.claude/skills/imozuru`
-- creates `~/factory/` with `CLAUDE.md` (imports the workflow), `TASKS.md` (task numbers) and a link
-  `~/factory/workflow` → `~/factory-kit/workflow`
+macOS, Claude Code 2.1.x (channels), Beeper Desktop with its API turned on and your WhatsApp in it, Node 18+ and
+npm, Python 3.9+, git, jq. Codex CLI only for Codex builds. For the tests: pytest (`python3 -m pip install --user pytest`).
+
+## Install (both tools)
+
+1. Clone and fill in your values:
+
+        git clone <this repo> ~/factory-kit && cd ~/factory-kit
+        cp factory.env.example factory.env && chmod 600 factory.env
+        # edit factory.env: OWNER_NAME, CHAT_ID (your own "message yourself" chat), TOKEN_FILE, PROTECTED_DIRS, TZ
+        mkdir -p ~/.config/factory-kit && pbpaste > ~/.config/factory-kit/beeper-token && chmod 600 ~/.config/factory-kit/beeper-token
+
+2. See what the installer would change (nothing is written):
+
+        bash install.sh
+
+   It prints the exact lines for `~/.claude/settings.json` (the Stop hook), `~/.codex/hooks.json` (the guards and
+   the Stop hook), your shell rc (`FACTORY_KIT` and a `foreman` alias), the skill links and the work folder files.
+
+3. Apply it (each global file is backed up first as `<file>.factory-kit-backup-<time>`):
+
+        bash install.sh --apply
+
+   Skill names that already exist in `~/.claude/skills` or `~/.agents/skills` are skipped, and existing work
+   folder files are kept.
+
+4. **Codex: trust the hooks.** Codex skips new or changed hooks until you trust them. Start `codex`, type
+   `/hooks`, review the factory-kit hooks and trust them. Do this again after the kit's hooks change.
+
+5. Check:
+
+        bash doctor.sh
+
+   It checks factory.env and the token file, that Beeper answers and that `CHAT_ID` is your own chat, the Claude
+   and Codex hooks and the Codex trust records, the Claude Code / Codex versions, the dev-channel setup and the
+   watchdog. It sends nothing.
+
+To take the kit out again: `bash install.sh --uninstall` (removes only what the kit added; your work folder stays).
 
 ## Use
 
-    cd ~/factory && claude
+Start the foreman and keep its terminal open:
 
-Then type the request, for example "build a CLI that counts words in a folder".
-Claude numbers it (T1, T2, …), researches real uses, and shows you a short plan.
-Reply `go T1` to let it build, or say what to change. Nothing is built before your go.
+    ~/factory-kit/foreman/foreman.sh
 
-Research goes to `~/research/<topic>/`, each task's code to `~/factory/<repo>/`.
+The first start asks about development channels: choose "I am using this for local development". Then, from your
+phone, send yourself `F: <task>` in WhatsApp. The foreman numbers it, researches, and replies with a short spec
+ending "Reply F: go T<n>". Nothing is built before your `F: go T<n>`. Builds run in background agents in git
+worktrees; a build can also run in Codex:
 
-## Update
+    ~/factory-kit/foreman/codex-run.sh /private/tmp/t7-wt /private/tmp/t7-task.md
 
-    cd ~/factory-kit && git pull
+Without the phone, `cd ~/factory && claude` (or `codex`) follows the same workflow in the terminal.
 
-The workflow is a link, so the next Claude Code session in `~/factory` uses the new version.
-Re-run `install.sh` only for a new skill version (delete `~/.claude/skills/imozuru` first).
+### Check it works
+
+Send `F: ping` from your phone while the foreman runs: it should answer in your chat within a minute.
 
 ## Tests
 
-    cd workflow && python3 -m unittest -v test_check_task
+    bash tests/run_all.sh
+
+Runs `scan_private.py`, the channel tests (`node --test`), the Python tests (pytest: config, guards with Codex
+`apply_patch`, install in a temporary HOME, doctor against a fake Beeper, ask-me, the Stop hook, safe-push,
+watchdog, start-watchdog), the workflow checker's tests and `tests/test_clean_install.sh` (a clean install into a
+temporary HOME with a fake Beeper: install, doctor, an `F:` message through the channel, the spec reply). Tests
+never use your HOME, Beeper or agent configs. `foreman/channel/test/smoke-live.mjs` is a manual test that sends one
+real message to your own chat.
+
+## Update
+
+    cd ~/factory-kit && git pull && bash install.sh --apply
+
+Then trust any changed hooks in Codex (`/hooks`) and restart the foreman.
