@@ -1,7 +1,9 @@
 // The channel's only transport in v1: the owner's own WhatsApp chat, read and written through the Beeper Desktop
 // API on this Mac. Another transport can replace this module by exporting the same createTransport() shape:
-//   ownChat() -> boolean, messages() -> [{id, sortKey, type, text}] oldest first, send(text)
-// send() refuses unless the chat is the account's own 1:1 chat (same check as ask-me.py).
+//   ownChat() -> boolean, messages() -> [{id, sortKey, type, text}] oldest first, send(text), react(messageID, key)
+// send() refuses unless the chat is the account's own 1:1 chat (same check as ask-me.py). react() adds a reaction
+// (Beeper Desktop API 5.0.0: POST /v1/chats/{chatID}/messages/{messageID}/reactions) to a message the channel
+// already read from that chat.
 import fs from 'node:fs'
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
@@ -43,5 +45,9 @@ export function createTransport ({ base, tokenFile, chat }) {
     await call('POST', chatPath + '/messages', { text })
   }
 
-  return { ownChat, messages, send }
+  async function react (messageID, key) {
+    await call('POST', chatPath + '/messages/' + encodeURIComponent(messageID) + '/reactions', { reactionKey: key })
+  }
+
+  return { ownChat, messages, send, react }
 }

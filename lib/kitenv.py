@@ -24,6 +24,13 @@ DEFAULTS = {
     "CHAT_ID": "",
     "TOKEN_FILE": "",
     "CODEX_SANDBOX": "0",
+    # WhatsApp reply guard (hooks/reply_guard.py, T22)
+    "REPLY_MAX_CHARS": "700",
+    "REPLY_MAX_LINES": "10",
+    "REPLY_BURST_MAX": "2",
+    "REPLY_BURST_SECONDS": "120",
+    "REPLY_GH_TIMEOUT": "20",
+    "REPLY_GH_OWNER": "",
 }
 # names the scripts have always read; they win over the generic factory.env names
 ALIASES = {
