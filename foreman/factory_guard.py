@@ -3,8 +3,9 @@
 
 Why: a foreman once started inside the owner's main repo made a commit there that swept up other sessions'
 staged files and then moved HEAD back with a reset. The foreman now runs in WORK_DIR, and this guard refuses
-git writes whose working repo is a protected folder (cwd, `cd` in the same command, or `git -C`) and edits of
-files in one. Reading those folders and running their scripts stays allowed.
+Bash writes whose target is a protected folder - git writes there (cwd, `cd` in the same command, `git -C`) and,
+since T15, any other tool: redirections, tee, sed -i, cp/mv/ln/touch/mkdir/rm/chmod, inline python/node writes -
+and edits of files in one. The Bash command is parsed by hooks/guard_bash.py. Reading those folders and running their scripts stays allowed.
 
 Protected folders: PROTECTED_DIRS in factory.env (colon-separated) plus the kit itself, so the factory can't
 edit its own guards or the watchdog pin.
@@ -19,16 +20,15 @@ in their repos are left alone.
 import json
 import os
 import re
-import shlex
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hooks"))
+import guard_bash  # noqa: E402
 import kitenv  # noqa: E402
 
-READ_ONLY = {"status", "log", "diff", "show", "rev-parse", "ls-files", "cherry", "merge-base", "blame",
-             "grep", "describe"}  # branch/remote/config/worktree/fetch can write, so they count as writes
 PATCH_PATH = re.compile(r"^\*\*\* (?:Add File|Update File|Delete File|Move to):\s*(.+?)\s*$", re.M)
 FILE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 
@@ -60,31 +60,13 @@ class Guard:
         common = os.path.realpath(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else ""
         return bool(common) and common.startswith(self.work + os.sep)
 
-    def git_write(self, command, cwd):
-        where = cwd
-        for seg in re.split(r"&&|\|\||;|\||\n", command):
-            try:
-                words = shlex.split(seg)
-            except ValueError:
-                words = seg.split()
-            if not words:
-                continue
-            if words[0] == "cd" and len(words) > 1:
-                where = os.path.join(where, os.path.expanduser(os.path.expandvars(words[1])))
-                continue
-            if words[0] != "git":
-                continue
-            repo, rest = where, words[1:]
-            while rest and rest[0].startswith("-"):
-                if rest[0] == "-C" and len(rest) > 1:
-                    repo = os.path.join(repo, os.path.expanduser(os.path.expandvars(rest[1])))
-                    rest = rest[2:]
-                else:
-                    rest = rest[1:]
-            sub = rest[0] if rest else ""
-            if sub and sub not in READ_ONLY and self.inside_protected(real(repo)):
-                return f"git {sub}"
-        return None
+    def bash_write(self, command, cwd):
+        """First reason this Bash command writes into a protected folder (T15 R4: any tool, not only git).
+
+        Uses the guard_bash parser: redirections, tee, sed -i, cp/mv/ln/touch/mkdir/rm/chmod targets, inline
+        python/node writes, `cd` earlier in the command, and git writes whose repo is protected."""
+        hits = guard_bash.protected_writes(command, os.path.realpath(cwd), self.protected)
+        return hits[0] if hits else None
 
     def patch_hit(self, patch, cwd):
         for m in PATCH_PATH.finditer(patch):
@@ -98,22 +80,17 @@ class Guard:
         if not self.factory_session(cwd):
             return None
         raw = inp.get("command") if isinstance(inp, dict) else None
-        if isinstance(raw, list):  # Codex argv form, e.g. ["bash", "-lc", "<script>"]: check the script too
-            parts = [" ".join(shlex.quote(str(w)) for w in raw)] + [str(w) for w in raw[1:]]
-        else:
-            parts = [raw] if isinstance(raw, str) else []
-        text = "\n".join(parts)
+        text = guard_bash.command_text(raw)  # Codex may send an argv list, e.g. ["bash", "-lc", "<script>"]
         if tool == "apply_patch" or "*** Begin Patch" in text:
             hit = self.patch_hit(text, cwd)
             if hit:
                 return (f"the factory must not edit files in a protected folder ({hit}); "
                         "work in the task's own repo or worktree")
-        if tool == "Bash":
-            for part in parts:
-                hit = self.git_write(part, cwd)
-                if hit:
-                    return (f"the factory must not change a protected folder ({hit}); "
-                            "work in the task's own repo or worktree")
+        if tool == "Bash" and text.strip():
+            hit = self.bash_write(text, cwd)
+            if hit:
+                return (f"the factory must not change a protected folder ({hit}); "
+                        "work in the task's own repo or worktree")
         elif tool in FILE_TOOLS:
             path = inp.get("file_path") or inp.get("notebook_path") or ""
             if path and self.inside_protected(real(path, cwd)):

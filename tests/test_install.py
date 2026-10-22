@@ -72,7 +72,7 @@ def test_apply_links_skills_for_both_tools_and_sets_up_the_factory(tmp_path):
     assert "WORKFLOW-remote.md" in (work / "CLAUDE.md").read_text()
     assert "WORKFLOW-remote.md" in (work / "AGENTS.md").read_text()
     assert "| T | Title | State | Date |" in (work / "TASKS.md").read_text()
-    for f in ("mcp.json", "workspace-settings.json", "codex-hooks.json", "claude-settings.json",
+    for f in ("mcp.json", "workspace-settings.json", "build-settings.json", "codex-hooks.json", "claude-settings.json",
               "channel-instructions.txt"):
         assert (kit / "generated" / f).is_file(), f
     assert any("ask_me_stop.py" in c for c in kit_commands(home / ".claude" / "settings.json", kit))

@@ -7,6 +7,7 @@ from conftest import KIT
 
 PIECES = [
     "foreman/foreman.sh", "foreman/start-watchdog.sh", "foreman/factory_guard.py", "foreman/codex-run.sh",
+    "foreman/claude-run.sh", "hooks/guard_bash.py", "templates/build-settings.json.tmpl", "NOTICE",
     "foreman/channel/whatsapp-channel.mjs", "foreman/channel/beeper-transport.mjs",
     "foreman/channel/package.json", "foreman/channel/package-lock.json", "foreman/channel/test/channel.test.mjs",
     "watchdog/watchdog.py", "watchdog/watchdog.sha256",
