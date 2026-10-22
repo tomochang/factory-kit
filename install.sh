@@ -7,7 +7,7 @@
 #                           rendered <WORK_DIR>/workflow); TASKS.md and the task repos are kept
 #
 # What --apply does:
-#   - generated/: mcp.json, workspace-settings.json, build-settings.json, claude-settings.json, codex-hooks.json,
+#   - generated/: mcp.json, workspace-settings.json, claude-settings.json, codex-hooks.json,
 #     channel-instructions.txt, with absolute paths (lib/render.py)
 #   - ~/.claude/settings.json: the Stop hook (ask_me_stop.py). The guards are workspace-scoped for Claude Code:
 #     foreman.sh copies generated/workspace-settings.json to <WORK_DIR>/.claude/settings.json.
@@ -110,7 +110,7 @@ TOKEN="$($KITENV get TOKEN_FILE)"
 if [ "$MODE" = print ]; then
   echo "factory-kit install, dry run: nothing is written. Run again with --apply to make these changes."
   GEN="$(mktemp -d "${TMPDIR:-/tmp}/factory-kit-preview.XXXXXX")"
-  echo "would write $KIT/generated/ (mcp.json, workspace-settings.json, build-settings.json, claude-settings.json, codex-hooks.json, channel-instructions.txt)"
+  echo "would write $KIT/generated/ (mcp.json, workspace-settings.json, claude-settings.json, codex-hooks.json, channel-instructions.txt)"
 else
   echo "factory-kit install --apply ($KIT)"
   GEN="$KIT/generated"
