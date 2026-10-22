@@ -86,7 +86,7 @@ class Values:
 
     def word(self, value, kind):
         value = (value or "").strip().lower()
-        if len(value) >= 4 and value not in {"owner", "user", "agent", "factory", "admin", "root"}:
+        if len(value) >= 4 and value not in {"owner", "user", "agent", "factory", "admin", "root", "runner"}:
             self.words.setdefault(value, kind)
 
     def private_dir(self, path):

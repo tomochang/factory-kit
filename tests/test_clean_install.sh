@@ -47,10 +47,10 @@ if nm.is_dir():  # stay offline; install.sh runs npm ci when it is missing
 EOF
 
 step "start a fake Beeper"
-python3 "$KIT/tests/fake_beeper.py" --port-file "$TMP/port" &
+python3 "$KIT/tests/fake_beeper.py" --port-file "$TMP/port" 2>"$TMP/beeper.log" &
 BEEPER_PID=$!
-for _ in $(seq 50); do [ -s "$TMP/port" ] && break; sleep 0.1; done
-[ -s "$TMP/port" ] || fail "fake Beeper did not start"
+for _ in $(seq 300); do [ -s "$TMP/port" ] && break; sleep 0.1; done
+[ -s "$TMP/port" ] || { cat "$TMP/beeper.log" >&2; fail "fake Beeper did not start within 30 s"; }
 PORT="$(cat "$TMP/port")"
 
 step "fill in factory.env (the only thing a new owner writes)"
