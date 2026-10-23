@@ -4,11 +4,13 @@
 Never talks to the real Beeper. As a library: Fake(), serve(fake). As a program (for shell tests):
     fake_beeper.py --port-file F [--self-phone +15550000001]
 serves until killed. Extra test endpoints: POST /test/add {"text": ...} adds a message the owner typed,
-GET /test/sent lists what the kit sent.
+GET /test/sent lists what the kit sent, GET /test/reactions lists the reactions it added ({"id", "key"}).
 """
 import argparse
 import json
+import re
 import threading
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SELF = "!self:beeper.local"
@@ -20,6 +22,7 @@ class Fake:
     def __init__(self, self_phone=OWN_PHONE):
         self.msgs = []
         self.sent = []
+        self.reactions = []
         self.self_phone = self_phone
         self.lock = threading.Lock()
         self.auth = []
@@ -50,6 +53,8 @@ class Fake:
                 fake.auth.append(self.headers.get("Authorization"))
                 if self.path == "/test/sent":
                     return self.reply(fake.sent)
+                if self.path == "/test/reactions":
+                    return self.reply(fake.reactions)
                 if self.path.startswith("/v1/accounts"):
                     return self.reply([{"accountID": ACCOUNT, "network": "WhatsApp",
                                         "user": {"phoneNumber": OWN_PHONE}}])
@@ -67,6 +72,12 @@ class Fake:
                 if self.path == "/test/add":
                     fake.add(data["text"])
                     return self.reply({"ok": True})
+                m = re.search(r"/messages/([^/]+)/reactions$", self.path)
+                if m:  # Beeper Desktop API 5.0.0: POST /v1/chats/{chatID}/messages/{messageID}/reactions
+                    mid = urllib.parse.unquote(m.group(1))
+                    fake.reactions.append({"id": mid, "key": data["reactionKey"]})
+                    return self.reply({"success": True, "chatID": SELF, "messageID": mid,
+                                       "reactionKey": data["reactionKey"], "transactionID": "t"})
                 text = data["text"]
                 fake.sent.append(text)
                 fake.add("<p>" + text.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>")

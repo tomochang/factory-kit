@@ -16,7 +16,14 @@ const DEFAULTS = {
   ASK_ME_STATE: '~/.factory-kit/ask-me',
   OWNER_NAME: '',
   CHAT_ID: '',
-  TOKEN_FILE: ''
+  TOKEN_FILE: '',
+  // WhatsApp reply guard (hooks/reply_guard.py, T22); the instructions quote the limits
+  REPLY_MAX_CHARS: '700',
+  REPLY_MAX_LINES: '10',
+  REPLY_BURST_MAX: '2',
+  REPLY_BURST_SECONDS: '120',
+  REPLY_GH_TIMEOUT: '20',
+  REPLY_GH_OWNER: ''
 }
 const ALIASES = { BEEPER_BASE: ['BEEPER_API_BASE'], TOKEN_FILE: ['BEEPER_TOKEN_FILE'], CHAT_ID: ['FACTORY_CHAT', 'ASK_ME_CHAT'] }
 const PATHS = ['TOKEN_FILE', 'WORK_DIR', 'ASK_ME_STATE']
@@ -74,7 +81,9 @@ export function renderInstructions (cfg) {
     PROTECTED_TEXT: cfg.PROTECTED_DIRS.join(' or '),
     ASK_ME: path.join(KIT, 'scripts', 'ask-me.py'),
     SAFE_PUSH: path.join(KIT, 'scripts', 'safe-push.sh'),
-    CODEX_RUN: path.join(KIT, 'foreman', 'codex-run.sh')
+    CODEX_RUN: path.join(KIT, 'foreman', 'codex-run.sh'),
+    REPLY_MAX_CHARS: cfg.REPLY_MAX_CHARS,
+    REPLY_MAX_LINES: cfg.REPLY_MAX_LINES
   }
   const tmpl = fs.readFileSync(path.join(KIT, 'templates', 'channel-instructions.txt.tmpl'), 'utf8')
   return tmpl.replace(/\{\{([A-Z_]+)\}\}/g, (_, k) => {

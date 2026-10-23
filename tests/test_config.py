@@ -113,6 +113,18 @@ def test_workspace_settings_run_the_kit_guards_for_claude_code(tmp_path):
     assert any(str(kit / "foreman" / "factory_guard.py") in c for c in write)
 
 
+def test_workspace_settings_guard_whatsapp_replies_and_unanswered_messages(tmp_path):
+    # T22 R2/R3: the reply guard runs before every reply tool call, and on Stop in the foreman's workspace
+    _, kit, env = setup_install(tmp_path)
+    s = json.loads((render(kit, env) / "workspace-settings.json").read_text())
+    guard = str(kit / "hooks" / "reply_guard.py")
+    assert any(guard in c for c in commands(s, "PreToolUse", "mcp__whatsapp__reply"))
+    assert any(guard in c for c in commands(s, "Stop"))
+    timeouts = [h["timeout"] for g in s["hooks"]["PreToolUse"] if g["matcher"] == "mcp__whatsapp__reply"
+                for h in g["hooks"]]
+    assert min(timeouts) >= 60  # room for gh pr checks (REPLY_GH_TIMEOUT, 20 s by default)
+
+
 def test_codex_hooks_use_the_same_guards_and_match_apply_patch(tmp_path):
     _, kit, env = setup_install(tmp_path)
     h = json.loads((render(kit, env) / "codex-hooks.json").read_text())
@@ -142,6 +154,15 @@ def test_channel_instructions_are_filled_from_the_template(tmp_path):
     assert str(kit / "scripts" / "ask-me.py") in text
     assert str(kit / "scripts" / "safe-push.sh") in text
     assert str(kit / "foreman" / "codex-run.sh") in text
+    assert "Reply format" in text and "700 characters" in text and "10 lines" in text  # T22 R4
+
+
+def test_reply_limits_in_the_instructions_follow_factory_env(tmp_path):
+    _, kit, env = setup_install(tmp_path)
+    with open(kit / "factory.env", "a") as f:
+        f.write('REPLY_MAX_CHARS="500"\nREPLY_MAX_LINES="6"\n')
+    text = (render(kit, env) / "channel-instructions.txt").read_text()
+    assert "500 characters" in text and "6 lines" in text
 
 
 def test_an_unknown_placeholder_is_an_error():

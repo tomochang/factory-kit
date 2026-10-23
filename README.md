@@ -13,6 +13,7 @@ The kit holds the whole foreman flow:
 | `foreman/channel/` | the `whatsapp` channel (MCP, `claude/channel`): `F:` messages become tasks, the reply tool answers; Beeper is one module (`beeper-transport.mjs`) |
 | `foreman/factory_guard.py`, `hooks/security-*.sh`, `hooks/guard_bash.py` | guards for Claude Code and Codex: no writes (git or any other tool) or edits in protected folders, no destructive commands, no secret reads, no secrets in files; Bash commands are parsed (wrappers, `bash -c`, `eval`, quoted text as data, ported from cc-safety-net, see NOTICE); they read Codex `apply_patch` edits too |
 | `hooks/ask_me_stop.py` | Stop hook: a turn that ends with a question is sent back once, to ask on your phone instead |
+| `hooks/reply_guard.py` | the foreman's WhatsApp replies, enforced: a reply that is too long, does not start with what you must do (`You:` / `Nothing needed` / `Got it`), shows a local file path, claims done/green while the PR's checks are not all green (`gh pr checks`), or comes as a burst is refused with a rewrite hint; the foreman cannot end its turn while a message of yours has no reply. Limits in factory.env (`REPLY_*`) |
 | `scripts/ask-me.py` | asks you on your phone and returns your reply; `--tell` for reports; `--check` for doctor |
 | `scripts/safe-push.sh` | pushes a worktree's commits safely (clean, rebased, tested) |
 | `watchdog/watchdog.py` | messages you when the foreman stops, restarts or its channel goes quiet, and when a Codex run finishes, stops without finishing, is interrupted or sits idle after finishing (started pinned by `foreman/start-watchdog.sh`) |
@@ -87,7 +88,7 @@ Without the phone, `cd ~/factory && claude` (your `WORK_DIR`) (or `codex`) follo
 
 ### Check it works
 
-Send `F: ping` from your phone while the foreman runs: it should answer in your chat within a minute.
+Send `F: ping` from your phone while the foreman runs: it should answer in your chat within a minute. Your message gets 👀 as soon as the channel reads it (no model involved) and ✅ once the foreman has replied.
 
 ## Tests
 

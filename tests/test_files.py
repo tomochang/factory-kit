@@ -12,7 +12,7 @@ PIECES = [
     "foreman/channel/package.json", "foreman/channel/package-lock.json", "foreman/channel/test/channel.test.mjs",
     "watchdog/watchdog.py", "watchdog/watchdog.sha256",
     "scripts/ask-me.py", "scripts/safe-push.sh",
-    "hooks/ask_me_stop.py", "hooks/security-bash.sh", "hooks/security-file-write.sh",
+    "hooks/ask_me_stop.py", "hooks/reply_guard.py", "hooks/security-bash.sh", "hooks/security-file-write.sh",
     "templates/mcp.json.tmpl", "templates/workspace-settings.json.tmpl", "templates/codex-hooks.json.tmpl",
     "templates/claude-settings.json.tmpl", "templates/channel-instructions.txt.tmpl",
     "templates/factory/CLAUDE.md", "templates/factory/AGENTS.md", "templates/factory/TASKS.md",

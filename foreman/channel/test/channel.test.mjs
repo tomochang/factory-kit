@@ -22,12 +22,24 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 function fakeBeeper (selfPhone = '+81700000000') {
   const msgs = []
   const sent = []
+  const reactions = [] // {id, key}: POST /v1/chats/{chat}/messages/{id}/reactions (Beeper Desktop API 5.0.0)
+  const fake = { failReactions: false }
   const add = text => msgs.push({ id: String(msgs.length + 1), sortKey: String(1000 + msgs.length), type: 'TEXT', text, isSender: true })
   const srv = http.createServer((req, res) => {
     const reply = (obj, code = 200) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)) }
     if (req.method === 'POST') {
       let body = ''
       req.on('data', c => { body += c })
+      const r = req.url.match(/\/messages\/([^/]+)\/reactions$/)
+      if (r) {
+        req.on('end', () => {
+          if (fake.failReactions) return reply({ error: 'boom' }, 500)
+          const key = JSON.parse(body).reactionKey
+          reactions.push({ id: decodeURIComponent(r[1]), key })
+          reply({ success: true, chatID: SELF, messageID: r[1], reactionKey: key, transactionID: 't' })
+        })
+        return
+      }
       req.on('end', () => { const t = JSON.parse(body).text; sent.push(t); add('<p>' + t.replace(/\n/g, '<br>') + '</p>'); reply({ chatID: SELF }) })
       return
     }
@@ -38,7 +50,7 @@ function fakeBeeper (selfPhone = '+81700000000') {
     }
     reply({}, 404)
   })
-  return new Promise(resolve => srv.listen(0, '127.0.0.1', () => resolve({ srv, msgs, sent, add, port: srv.address().port })))
+  return new Promise(resolve => srv.listen(0, '127.0.0.1', () => resolve(Object.assign(fake, { srv, msgs, sent, add, reactions, port: srv.address().port }))))
 }
 
 function baseEnv (beeper, dir, extra = {}) {
@@ -61,8 +73,7 @@ function baseEnv (beeper, dir, extra = {}) {
   }
 }
 
-async function startChannel (beeper, extra = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-channel-'))
+async function startChannel (beeper, extra = {}, dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-channel-'))) {
   fs.writeFileSync(path.join(dir, 'token'), 't\n')
   const events = []
   const client = new Client({ name: 'test', version: '0' })
@@ -223,4 +234,108 @@ test('the Beeper transport is one module: own-chat check, read, send', { timeout
 
 test('a Beeper base off this Mac is refused', () => {
   assert.throws(() => createTransport({ base: 'http://example.com:23373', tokenFile: '/x', chat: SELF }), /127\.0\.0\.1/)
+})
+
+// --- T22: receipt and answered marks, state for the reply guard and the unanswered Stop hook
+
+const inboxFile = (dir, id) => path.join(dir, 'state', 'channel', 'inbox', id + '.json')
+const readInbox = (dir, id) => JSON.parse(fs.readFileSync(inboxFile(dir, id), 'utf8'))
+
+test('a new F: message is marked 👀 at once, before the session sees it, and written to the inbox state', { timeout: 15000 }, async () => {
+  const b = await fakeBeeper()
+  const ch = await startChannel(b)
+  const seenAtEvent = []
+  ch.client.fallbackNotificationHandler = async n => { seenAtEvent.push(b.reactions.length); ch.events.push(n.params) }
+  try {
+    await sleep(300)
+    b.add('just a note')
+    b.add('F: build a word counter')
+    await sleep(500)
+    const id = ch.events[0].meta.message_id
+    assert.deepEqual(b.reactions, [{ id, key: '👀' }]) // notes get no mark
+    assert.deepEqual(seenAtEvent, [1]) // marked without waiting for the model
+    const st = readInbox(ch.dir, id)
+    assert.equal(st.answered_at, null)
+    assert.equal(st.stale, false)
+    assert.equal(st.text, 'build a word counter')
+    assert.ok(Math.abs(st.received_at - Date.now() / 1000) < 5)
+    assert.deepEqual(b.sent, []) // a reaction, not an extra message
+  } finally { await ch.close(); b.srv.close() }
+})
+
+test('after the reply every waiting message gets ✅, is marked answered, and the reply is logged', { timeout: 15000 }, async () => {
+  const b = await fakeBeeper()
+  const ch = await startChannel(b)
+  try {
+    await sleep(300)
+    b.add('F: one')
+    b.add('F: two')
+    await sleep(500)
+    const ids = ch.events.map(e => e.meta.message_id)
+    const r = await ch.client.callTool({ name: 'reply', arguments: { text: 'Got it - both noted' } })
+    assert.equal(r.isError, undefined)
+    assert.deepEqual(b.reactions.filter(x => x.key === '✅').map(x => x.id).sort(), ids.slice().sort())
+    for (const id of ids) assert.ok(readInbox(ch.dir, id).answered_at >= readInbox(ch.dir, id).received_at)
+    const log = fs.readFileSync(path.join(ch.dir, 'state', 'channel', 'replies.jsonl'), 'utf8').trim().split('\n').map(JSON.parse)
+    assert.equal(log.length, 1)
+    assert.equal(log[0].text, 'Got it - both noted')
+    // a second reply does not mark again
+    await ch.client.callTool({ name: 'reply', arguments: { text: 'Nothing needed - more' } })
+    assert.equal(b.reactions.filter(x => x.key === '✅').length, 2)
+  } finally { await ch.close(); b.srv.close() }
+})
+
+test('messages left unanswered by an earlier channel run are marked stale on start', { timeout: 15000 }, async () => {
+  const b = await fakeBeeper()
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-stale-'))
+  fs.mkdirSync(path.join(dir, 'state', 'channel', 'inbox'), { recursive: true })
+  fs.writeFileSync(inboxFile(dir, '77'), JSON.stringify({ id: '77', text: 'old', received_at: 1, answered_at: null, stale: false, stop_blocks: 0 }))
+  const ch = await startChannel(b, {}, dir)
+  try {
+    await sleep(300)
+    assert.equal(readInbox(dir, '77').stale, true)
+  } finally { await ch.close(); b.srv.close() }
+})
+
+test('when reactions fail, a one-line receipt marked as the factory is posted instead', { timeout: 15000 }, async () => {
+  const b = await fakeBeeper()
+  b.failReactions = true
+  const ch = await startChannel(b)
+  try {
+    await sleep(300)
+    b.add('F: build it')
+    await sleep(500)
+    assert.equal(ch.events.length, 1)
+    assert.deepEqual(b.sent, ['🤖 · factory: ✓ got it'])
+    assert.equal(readInbox(ch.dir, ch.events[0].meta.message_id).receipt, 'text')
+    await sleep(300)
+    assert.equal(ch.events.length, 1) // the receipt never comes back as a task
+  } finally { await ch.close(); b.srv.close() }
+})
+
+test('the instructions carry the reply format the guard enforces', { timeout: 15000 }, async () => {
+  const b = await fakeBeeper()
+  const ch = await startChannel(b)
+  try {
+    const text = ch.client.getInstructions()
+    assert.match(text, /Reply format/)
+    assert.match(text, /You:/)
+    assert.match(text, /Nothing needed/)
+    assert.match(text, /700 characters/)
+    assert.match(text, /10 lines/)
+    assert.match(text, /File:/)
+    assert.match(text, /gh pr checks/)
+    assert.match(text, /sensible default/)
+  } finally { await ch.close(); b.srv.close() }
+})
+
+test('the transport adds a reaction to one message', { timeout: 15000 }, async () => {
+  const b = await fakeBeeper()
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-react-'))
+  fs.writeFileSync(path.join(dir, 'token'), 't\n')
+  const t = createTransport({ base: `http://127.0.0.1:${b.port}`, tokenFile: path.join(dir, 'token'), chat: SELF })
+  try {
+    await t.react('5', '👀')
+    assert.deepEqual(b.reactions, [{ id: '5', key: '👀' }])
+  } finally { b.srv.close() }
 })

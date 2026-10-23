@@ -63,6 +63,8 @@ def values(cfg, out):
         "ASK_ME": str(kit / "scripts" / "ask-me.py"),
         "SAFE_PUSH": str(kit / "scripts" / "safe-push.sh"),
         "CODEX_RUN": str(kit / "foreman" / "codex-run.sh"),
+        "REPLY_MAX_CHARS": cfg["REPLY_MAX_CHARS"],
+        "REPLY_MAX_LINES": cfg["REPLY_MAX_LINES"],
     }
 
 

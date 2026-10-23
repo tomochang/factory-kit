@@ -14,6 +14,19 @@
           {"type": "command", "command": "bash '{{KIT}}/hooks/security-file-write.sh'", "timeout": 10},
           {"type": "command", "command": "python3 '{{KIT}}/foreman/factory_guard.py'", "timeout": 10}
         ]
+      },
+      {
+        "matcher": "mcp__whatsapp__reply",
+        "hooks": [
+          {"type": "command", "command": "python3 '{{KIT}}/hooks/reply_guard.py'", "timeout": 60}
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "python3 '{{KIT}}/hooks/reply_guard.py'", "timeout": 10}
+        ]
       }
     ]
   }
