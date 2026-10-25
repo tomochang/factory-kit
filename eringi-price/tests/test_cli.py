@@ -79,6 +79,9 @@ def test_plist_runs_daily_at_send_time_through_this_cli(config):
     assert "<string>/x/eringi-price</string>" in text and "<string>run</string>" in text
     assert "--dry-run" not in text
     assert config.label in text and str(config.data_dir) in text and config.ask_me in text
+    import plistlib
+    p = plistlib.loads(text.encode("utf-8"))  # strict XML: launchd and plistlib must both read it
+    assert p["ProgramArguments"] == ["/x/eringi-price", "run"] and p["StartCalendarInterval"] == {"Hour": 17, "Minute": 0}
 
 
 def test_install_uses_launchctl_only_when_asked(config, tmp_path):

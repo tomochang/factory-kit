@@ -7,7 +7,7 @@ from xml.sax.saxutils import escape
 
 TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- eringi-price: one エリンギ price report a day to his own chat (ask-me --tell). Rendered by `eringi-price install`. -->
+<!-- eringi-price: one エリンギ price report a day to his own chat through ask-me (tell mode). Rendered by "eringi-price install". -->
 <plist version="1.0">
 <dict>
   <key>Label</key><string>{label}</string>
