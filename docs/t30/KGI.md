@@ -1,0 +1,21 @@
+# T30 KGI
+
+Research: `~/research/eringi-price/` (map.md, log.md, report.html, sources/). Source names below are files in its `sources/`.
+
+## KGI
+
+- Metric: Share of days in a 28-day trial on which his own WhatsApp gets exactly one エリンギ report by 17:30 JST, where every price figure in it matches the stored source row for the date it states, and nothing old is shown as new. On a day with no market (休市) or a source outage, the report counts only if it says so on line 1 and shows no new prices.
+- Target: at least 27 of 28 days (96%), and 0 days with stale data shown as new.
+- Deadline: 2026-12-15. This is a 28-day trial that starts when he installs it; delivery is assumed by 2026-11-15.
+- How measured: Every run keeps the raw source files it read (with sha256) and the message it sent in a local run log. `eringi-price audit` re-parses the stored raw files and compares each figure in each sent message against them. It also checks that the "as of" date of every price line is the newest open-market date known for that source, and that every 休市 or outage day was reported as such. Open-market days come from the 農林水産省 青果物市況情報 date list (it lists only open days; 2026-10-14, 10-18 and 10-21 are missing from it). Missing days are days with no row in the run log.
+- Based on: GD Freak already sends this kind of automatic daily comment on 大阪本場 エリンギ茸 prices (main origin, this week against last week, against last year) (`gdfreak-osaka-honjo-eringi-sanchi.md:30`). That shows the report shape is possible from the public data. In the same week, both daily sources stopped for a PHP security problem (`tokyo-shijou-nippo-2026-10-25.md:5`, `osaka-shijo-maintenance-2026-10-23.md:115-121`). GD Freak's own page has a day with no high or low price (`gdfreak-osaka-honjo-eringi-daily.md:28`). A real daily collector had to separate "market closed" from "fetch failed" to avoid holes (`harenoke-budou-shijou-collect.py.txt:67-69`). So "no stale data shown as new" is a separate target. The 27/28 and 17:30 numbers are assumptions.
+
+## KPIs
+
+| KPI | Target | How measured | Based on |
+|-----|--------|--------------|----------|
+| K1 Figures match source | 100% of price, volume and percent figures in sent messages are equal to the value recomputed from the stored raw file | `eringi-price audit` over the run log; locally, golden tests on saved real files (Tokyo 2025-09 and 2026-09 明細, Osaka fixtures) | Tokyo 明細 rows give kg and yen per 市場 × 産地 (`tokyo-meisai-eringi-rows-202509-202609.csv`). Hand check: 2026-09 9-market average 613 yen/kg, 長野 558, 新潟 949 (log.md). The 100% target is an assumption. |
+| K2 No stale data shown as new | 0 messages that show a price for a date older than the newest open-market date without saying "前回" and its date; every 休市 and outage day said on line 1 | audit: "as of" date of each line vs the MAFF open-day list and the source's own date | Both daily sites stopped from 2026-10-23 (`tokyo-shijou-nippo-2026-10-25.md:5`, `osaka-shijo-maintenance-2026-10-23.md:121`). The Ibaraki site was down too (`ibaraki-kinoko-index.md:3`). opengov.jp went 205 days without an update (`opengov-vegetable-market.md:11`). |
+| K3 Origin coverage | The origins shown cover at least 95% of the エリンギ volume in the source for that period; the rest is shown as "他" | audit: sum of shown origins' kg ÷ total kg | Tokyo 2026-09: 長野 and 新潟 are 97.8% of 167,295 kg (log.md). 林野庁: 長野 14,822 t, 新潟 11,726 t, 福岡 1,799 t of 34,639 t in R6 (`rinya-kinoko-kentokai-4.txt:422-428`). |
+| K4 Phone format | 100% of messages are at most 700 characters and 10 lines, and line 1 starts "Nothing needed - " | test on every rendered message; the T22 reply hook also refuses longer ones | His reply format rules (foreman channel rules, T22) |
+| K5 Source change caught | A planted outage (503), empty file, changed header or missing エリンギ row is reported on line 1 the same day, in 100% of fixture runs | `tests/test_sources.py` with fixtures; weekly `eringi-price canary` in the trial | The Tokyo statistics site moved and the old one closed in 2025-10 (`tokyo-shijou-meisai-annai-2025.txt:43-44`). The budou-shijou collector stops when it gets 0 pages, as a sign the site layout changed (`harenoke-budou-shijou-collect.py.txt:150`). |

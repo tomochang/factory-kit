@@ -20,6 +20,7 @@ The kit holds the whole foreman flow:
 | `hooks/codex_watch_stop.py` | Codex Stop hook: records each finished turn for the watchdog (trust it once in Codex `/hooks`) |
 | `foreman/codex-run.sh` | runs a build in Codex: `command codex exec --json --cd <worktree>` (events in `<task>.codex.jsonl`, exit code kept, "Codex build failed: <task>" on failure); `CODEX_SANDBOX=1` in factory.env adds `--sandbox workspace-write` (then git commit and ask-me don't work inside the build) |
 | `skills/` | `imozuru`, `foreman`, `ask-me`, `safe-push`, linked into both `~/.claude/skills` and `~/.agents/skills` |
+| `eringi-price/` | a daily report task built by the factory (T30, `docs/t30/`): the recent エリンギ wholesale price trend by origin prefecture, once a day through `ask-me --tell`; `run --dry-run`, `backfill`, `audit`, `canary`, `install` (a LaunchAgent; installing is your step). Settings `ERINGI_*` in factory.env |
 | `install.sh`, `doctor.sh` | install (dry run first) and check |
 
 All personal and machine values live in one file, `factory.env`, which git ignores. `scan_private.py` keeps

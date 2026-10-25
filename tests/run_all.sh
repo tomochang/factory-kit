@@ -14,6 +14,7 @@ if [ ! -d foreman/channel/node_modules ]; then
 fi
 run "channel (node:test)" bash -c 'cd foreman/channel && npm test --silent'
 run "python tests" $PYTEST -q tests
+run "eringi-price tests" $PYTEST -q -p no:cacheprovider eringi-price/tests
 run "workflow checker" bash -c 'cd workflow && python3 -m unittest -q test_check_task'
 run "clean install" bash tests/test_clean_install.sh
 [ "$fail" = 0 ] && echo "== ALL PASSED" || echo "== SOME TESTS FAILED"

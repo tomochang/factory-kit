@@ -20,6 +20,7 @@ PIECES = [
     "lib/kitenv.py", "lib/render.py",
     "install.sh", "doctor.sh", "scan_private.py", "factory.env.example", "README.md",
     "tests/test_clean_install.sh", "tests/run_all.sh",
+    "eringi-price/eringi-price", "eringi-price/eringi_price/cli.py", "eringi-price/README.md",
 ]
 SKILLS = ["imozuru", "foreman", "ask-me", "safe-push"]
 
@@ -31,7 +32,7 @@ def test_every_piece_is_shipped():
 
 def test_scripts_are_executable():
     for p in PIECES:
-        if p.endswith(".sh") or p in ("scripts/ask-me.py", "scan_private.py"):
+        if p.endswith(".sh") or p in ("scripts/ask-me.py", "scan_private.py", "eringi-price/eringi-price"):
             assert os.access(KIT / p, os.X_OK), p
 
 
