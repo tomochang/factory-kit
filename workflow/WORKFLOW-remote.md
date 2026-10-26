@@ -76,7 +76,8 @@ ask-me question about T<n>) is the go for step 7. Nothing else counts as the go:
     (`$FACTORY_KIT/scripts/safe-push.sh --branch main --test "<full test command>"`, from the task's linked
     worktree) only if the repo has a remote the owner owns. Then:
     - Run `python3 {{WORK_DIR}}/workflow/check_task.py {{WORK_DIR}}/<repo>` (or the worktree) and include its result.
-    - Report T<n>: what changed and where, test results, KGI status, and REA limitations.
+    - Report T<n>: what changed and where, test results, KGI status, and REA limitations, with the line
+      `run-budget report T<n>` prints (`Cost: ...`) for the task's background runs.
     - Set TASKS.md to `done`.
 
     If stuck, report the question instead and set `blocked`. Send the report to the owner's phone (channel

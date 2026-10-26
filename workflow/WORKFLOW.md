@@ -67,7 +67,8 @@ The owner answers in the terminal. Their `go T<n>` is the go for step 7. Nothing
 10. **Build.** Implement until all tests pass. Push with `git push` only if the repo has a remote that
     the owner owns. Then:
     - Run `python3 {{WORK_DIR}}/workflow/check_task.py {{WORK_DIR}}/<repo>` (or the worktree) and include its result.
-    - Report T<n>: what changed and where, test results, KGI status, and REA limitations.
+    - Report T<n>: what changed and where, test results, KGI status, and REA limitations, with the line
+      `run-budget report T<n>` prints (`Cost: ...`) for the task's background runs.
     - Set TASKS.md to `done`.
 
     If stuck, report the question instead and set `blocked`.

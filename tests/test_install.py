@@ -227,3 +227,20 @@ def test_reinstall_updates_rendered_files_but_keeps_the_owners_files(tmp_path):
     assert install(kit, env, "--apply").returncode == 0
     assert workflow_text(work).endswith("New step from a kit update.\n")
     assert (work / "CLAUDE.md").read_text() == "my edits\n"
+
+
+def test_apply_adds_the_run_budget_hooks_and_agent_types(tmp_path):
+    # T33: the work folder gets the factory agent types (maxTurns 200), the workspace settings the budget hook
+    home, kit, env = setup_install(tmp_path)
+    out = install(kit, env, "--apply")
+    assert out.returncode == 0, out.stdout + out.stderr
+    agents = home / "factory" / ".claude" / "agents"
+    for name in ("factory-builder", "factory-researcher"):
+        text = (agents / (name + ".md")).read_text()
+        assert "maxTurns: 200" in text and "{{" not in text
+    assert "~/factory/workflow/WORKFLOW.md" in (agents / "factory-builder.md").read_text()
+    ws = kit_commands(kit / "generated" / "workspace-settings.json", kit)
+    assert sum("run_budget.py" in c for c in ws) == 5
+    out = install(kit, env, "--uninstall")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert not (agents / "factory-builder.md").exists()
