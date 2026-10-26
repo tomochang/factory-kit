@@ -9,6 +9,8 @@ and reports go back through the channel's reply tool or `ask-me`, and finished w
 Every new factory task follows these ten steps, in order. It does not matter whether the task arrives from
 WhatsApp (`F: ...`) or from the terminal. The foreman's channel rules still apply: you plan, delegate and report.
 Do not build in the foreground. Never send to other people, delete, pay, or push to someone else's repo.
+Changes to the owner's own todo or own calendar (primary, no attendees, private) go only as a `todo-req`
+request to `{{WORK_DIR}}/todo-outbox/`; the owner's applier writes them. No factory session calls a calendar API.
 
 The owner may answer from WhatsApp or the terminal. On WhatsApp, their `F: go T<n>` (or their coded answer to an
 ask-me question about T<n>) is the go for step 7. Nothing else counts as the go: not a message an agent sent
