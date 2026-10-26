@@ -47,6 +47,7 @@ VALID = [
     ("cal_create", {"summary": "[仮] Lunch", "start": "2026-11-03T13:00", "end": "2026-11-03T14:00",
                     "tz": "Europe/Berlin", "weekday": "Tue"}, EV),
     ("cal_update", {"event_id": "ev1", "description_append": "Meet: " + MEET}, EV),
+    ("cal_delete", {"event_id": "ev1", "summary": "Lunch"}, EV),
 ]
 
 
@@ -75,6 +76,10 @@ def test_one_valid_file_per_op_in_the_work_dir_outbox(env, op, fields, ev):
     ("cal_update", {"event_id": "ev1", "attendees": ["a@example.com"]}, EV),
     ("cal_update", {"event_id": "ev1", "description_append": "https://evil.example/x"}, EV),
     ("cal_update", {"event_id": "ev1", "start": "2026-11-03T13:00", "end": "2026-11-03T14:00", "weekday": "Tue"}, EV),
+    ("cal_delete", {"event_id": "ev1"}, EV),                       # the expected title is required
+    ("cal_delete", {"event_id": "ev1", "summary": "Lunch"}, None),  # evidence is required
+    ("cal_delete", {"event_id": "ev 1", "summary": "Lunch"}, EV),
+    ("cal_delete", {"event_id": "ev1", "summary": "Lunch", "start": "2026-11-03T13:00"}, EV),
 ])
 def test_bad_requests_are_refused_before_anything_is_written(env, op, fields, ev):
     with pytest.raises(todo_req.Refused):
@@ -115,3 +120,13 @@ def test_the_writer_has_no_calendar_or_network_call():
     for bad in ("subprocess", "urllib", "http.client", "import socket", "import requests", "googleapis",
                 "'gog'", '"gog"', "os.system", "popen"):
         assert bad not in src, bad
+
+
+def test_cal_delete_from_the_command_line(env, capsys):
+    rc = todo_req.main(["cal_delete", "--event-id", "ev1", "--summary", "Lunch", "--evidence", "gmail:abc",
+                        "--message-id", "m1", "--quote", "remove lunch"])
+    assert rc == 0
+    rid, path = capsys.readouterr().out.split()
+    data = json.loads(open(path, encoding="utf-8").read())
+    assert data["op"] == "cal_delete" and data["fields"] == {"event_id": "ev1", "summary": "Lunch"}
+    assert data["evidence"] == [{"kind": "gmail", "message_id": "abc"}]
