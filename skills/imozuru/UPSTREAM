@@ -1,0 +1,4 @@
+source: https://github.com/MaryCache/imozuru
+tag: v2.0.0
+rev: a678b07
+kit changes: scripts/py, and the scripts/py line under "## 道具" in SKILL.md
