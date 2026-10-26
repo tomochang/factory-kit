@@ -3,6 +3,8 @@
 Every new factory task follows these ten steps, in order. "The owner" is the person who runs this factory
 (you, if you start Claude Code here). You plan, delegate and report. Do not build in the foreground.
 Never send to other people, delete, pay, or push to someone else's repo.
+Changes to the owner's own todo or own calendar (primary, no attendees, private) go only as a `todo-req`
+request to `{{WORK_DIR}}/todo-outbox/`; the owner's applier writes them. No factory session calls a calendar API.
 
 The owner answers in the terminal. Their `go T<n>` is the go for step 7. Nothing else counts as the go.
 (For a factory that takes tasks from the owner's phone over WhatsApp, use `WORKFLOW-remote.md` instead.)
