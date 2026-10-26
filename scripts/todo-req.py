@@ -19,6 +19,9 @@ Usage (every request needs the message id from the channel and the owner's exact
   todo-req cal_delete --event-id E --summary S --evidence ... ...
                       (one of his own private events with no guests; S = the title he expects. The applier
                       checks the title and that the event's date is in his message or the evidence; undo recreates)
+  todo-req release_burst                                                   --message-id ID --quote Q
+                      (only for his own message "F: release calendar hold" after the applier told him it held
+                      calendar writes; no fields, no evidence; the applier re-reads his message)
 Prints "<id> <path>". Exit 1 = refused (reason on stderr), 2 = usage.
 
 Settings: factory.env through lib/kitenv.py (real env wins): TODO_OUTBOX (default <WORK_DIR>/todo-outbox) and
@@ -53,7 +56,9 @@ CAL_OPS = {
                                   "description_append"}),
     "cal_delete": ({"event_id", "summary"}, set()),
 }
-OPS = dict(TODO_OPS, **CAL_OPS)
+# the owner's applier may hold calendar writes after a burst; only the owner's own message releases it
+RELEASE_OPS = {"release_burst": (set(), set())}
+OPS = dict(TODO_OPS, **CAL_OPS, **RELEASE_OPS)
 MAX_FIELD = 300
 MAX_QUOTE = 500
 URL_RE = re.compile(r"(?i)\b(?:https?://|www\.)\S+")

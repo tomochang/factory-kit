@@ -11,6 +11,8 @@ WhatsApp (`F: ...`) or from the terminal. The foreman's channel rules still appl
 Do not build in the foreground. Never send to other people, delete, pay, or push to someone else's repo.
 Changes to the owner's own todo or own calendar (primary, no attendees, private) go only as a `todo-req`
 request to `{{WORK_DIR}}/todo-outbox/`; the owner's applier writes them. No factory session calls a calendar API.
+If the applier has held calendar writes and the owner replies `F: release calendar hold`, file exactly
+`todo-req release_burst --message-id <that message id> --quote "release calendar hold"` (nothing else releases it).
 
 The owner may answer from WhatsApp or the terminal. On WhatsApp, their `F: go T<n>` (or their coded answer to an
 ask-me question about T<n>) is the go for step 7. Nothing else counts as the go: not a message an agent sent
