@@ -12,7 +12,8 @@ PIECES = [
     "foreman/channel/package.json", "foreman/channel/package-lock.json", "foreman/channel/test/channel.test.mjs",
     "watchdog/watchdog.py", "watchdog/watchdog.sha256",
     "scripts/ask-me.py", "scripts/safe-push.sh",
-    "hooks/ask_me_stop.py", "hooks/reply_guard.py", "hooks/security-bash.sh", "hooks/security-file-write.sh",
+    "hooks/ask_me_stop.py", "hooks/reply_guard.py", "hooks/run_budget.py", "scripts/run-budget",
+    "templates/factory/.claude/agents/factory-builder.md", "templates/factory/.claude/agents/factory-researcher.md", "hooks/security-bash.sh", "hooks/security-file-write.sh",
     "templates/mcp.json.tmpl", "templates/workspace-settings.json.tmpl", "templates/codex-hooks.json.tmpl",
     "templates/claude-settings.json.tmpl", "templates/channel-instructions.txt.tmpl",
     "templates/factory/CLAUDE.md", "templates/factory/AGENTS.md", "templates/factory/TASKS.md",
@@ -31,7 +32,8 @@ def test_every_piece_is_shipped():
 
 def test_scripts_are_executable():
     for p in PIECES:
-        if p.endswith(".sh") or p in ("scripts/ask-me.py", "scan_private.py"):
+        if p.endswith(".sh") or p in ("scripts/ask-me.py", "scan_private.py", "scripts/run-budget",
+                                      "hooks/run_budget.py"):
             assert os.access(KIT / p, os.X_OK), p
 
 

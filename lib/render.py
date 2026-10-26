@@ -16,6 +16,8 @@ Templates use {{NAME}} placeholders; an unknown name is an error. Usage: render.
                    An old link into the kit's workflow/ (T13 installs) is replaced.
     CLAUDE.md, AGENTS.md, TASKS.md   from templates/factory/, created only when missing. Uninstall removes
                    CLAUDE.md and AGENTS.md only while they are unchanged; TASKS.md (the owner's data) always stays.
+    .claude/agents/factory-builder.md, factory-researcher.md   the factory agent types (T33, maxTurns 200 as a
+                   backstop to hooks/run_budget.py), handled like CLAUDE.md.
 The work folder is written as "~/<path>" when it is under HOME (so the default stays "~/factory"), else absolute.
 """
 import argparse
@@ -90,7 +92,8 @@ def render_all(cfg, out):
 
 WORK_PLACEHOLDER = "{{WORK_DIR}}"
 WORKFLOW_SKIP = {"test_check_task.py", "__pycache__", ".DS_Store"}
-OWNER_FILES = ("CLAUDE.md", "AGENTS.md", "TASKS.md")
+OWNER_FILES = ("CLAUDE.md", "AGENTS.md", "TASKS.md", ".claude/agents/factory-builder.md",
+               ".claude/agents/factory-researcher.md")
 KEEP_ALWAYS = {"TASKS.md"}
 MANIFEST = ".factory-kit-rendered"
 
@@ -181,6 +184,7 @@ def work_apply(cfg, mode):
         if dest.exists() or dest.is_symlink():
             print(f"skip: {dest} exists")
         else:
+            dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(data)
             print(f"created: {dest}")
     return 0

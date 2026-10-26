@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# run-budget CLI (T33): `run-budget report T<n> [--label]`, `run-budget audit --since YYYY-MM-DD`.
+# Runs run_budget.py from this folder, or from ../hooks/ (the factory-kit layout).
+set -u
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+for p in "$DIR/run_budget.py" "$DIR/../hooks/run_budget.py"; do
+  [ -f "$p" ] && exec python3 "$p" "$@"
+done
+echo "run-budget: run_budget.py not found next to $0" >&2
+exit 2
