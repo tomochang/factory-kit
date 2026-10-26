@@ -16,6 +16,9 @@ Usage (every request needs the message id from the channel and the owner's exact
                       [--all-day] [--location L] [--description D] --evidence beeper:<chat>:<msg>|gmail:<id> ...
   todo-req cal_update --event-id E [--summary S] [--start ... --end ... --tz ... --weekday ...]
                       [--location L] [--description D | --description-append D] --evidence ... ...
+  todo-req cal_delete --event-id E --summary S --evidence ... ...
+                      (one of his own private events with no guests; S = the title he expects. The applier
+                      checks the title and that the event's date is in his message or the evidence; undo recreates)
 Prints "<id> <path>". Exit 1 = refused (reason on stderr), 2 = usage.
 
 Settings: factory.env through lib/kitenv.py (real env wins): TODO_OUTBOX (default <WORK_DIR>/todo-outbox) and
@@ -48,6 +51,7 @@ CAL_OPS = {
     "cal_create": ({"summary", "start", "end", "tz", "weekday"}, {"all_day", "location", "description"}),
     "cal_update": ({"event_id"}, {"summary", "start", "end", "tz", "weekday", "location", "description",
                                   "description_append"}),
+    "cal_delete": ({"event_id", "summary"}, set()),
 }
 OPS = dict(TODO_OPS, **CAL_OPS)
 MAX_FIELD = 300
@@ -98,7 +102,7 @@ def check_text(name, value, table_cell=False, urls="none"):
 
 def check_fields(op, fields):
     if op not in OPS:
-        raise Refused("op %r is not one of %s (there is no delete and no free replace)" % (op, ", ".join(OPS)))
+        raise Refused("op %r is not one of %s (no todo delete, no free replace)" % (op, ", ".join(OPS)))
     if not isinstance(fields, dict):
         raise Refused("fields must be an object")
     need, may = OPS[op]
