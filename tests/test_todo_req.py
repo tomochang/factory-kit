@@ -130,3 +130,20 @@ def test_cal_delete_from_the_command_line(env, capsys):
     data = json.loads(open(path, encoding="utf-8").read())
     assert data["op"] == "cal_delete" and data["fields"] == {"event_id": "ev1", "summary": "Lunch"}
     assert data["evidence"] == [{"kind": "gmail", "message_id": "abc"}]
+
+
+def test_release_burst_from_the_command_line(env, capsys):
+    """The owner's applier may hold calendar writes after a burst; his own message releases it. The factory only files
+    the request (no fields, no evidence); the applier re-reads his message and decides."""
+    rc = todo_req.main(["release_burst", "--message-id", "m7", "--quote", "release calendar hold"])
+    assert rc == 0
+    rid, path = capsys.readouterr().out.split()
+    data = json.loads(open(path, encoding="utf-8").read())
+    assert data["op"] == "release_burst" and data["fields"] == {} and "evidence" not in data
+    assert data["quote"] == "release calendar hold" and set(data) == KEYS
+
+
+@pytest.mark.parametrize("fields,ev", [({"event_id": "ev1"}, None), ({}, EV)])
+def test_release_burst_takes_no_fields_and_no_evidence(env, fields, ev):
+    with pytest.raises(todo_req.Refused):
+        todo_req.build_request("release_burst", fields, message_id="m1", quote="release calendar hold", evidence=ev)
