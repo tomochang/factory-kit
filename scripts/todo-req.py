@@ -22,6 +22,12 @@ Usage (every request needs the message id from the channel and the owner's exact
   todo-req release_burst                                                   --message-id ID --quote Q
                       (only for his own message "F: release calendar hold" after the applier told him it held
                       calendar writes; no fields, no evidence; the applier re-reads his message)
+  todo-req add_task|note|done ... --source terminal --quote Q [--evidence beeper:<chat>:<msg>]...
+                      (T72: he asked in a terminal session, so there is no message id. Q = his exact words there.
+                      The applier re-reads each evidence message, puts the exact change on the phone-approval page
+                      and writes only after his passkey permit. Only add_task, note and done; calendar ops, undo,
+                      add_event and release_burst keep needing his WhatsApp message. Tell him only that an approval
+                      is waiting; it approves nothing else.)
 Prints "<id> <path>". Exit 1 = refused (reason on stderr), 2 = usage.
 
 Settings: factory.env through lib/kitenv.py (real env wins): TODO_OUTBOX (default <WORK_DIR>/todo-outbox) and
@@ -59,6 +65,8 @@ CAL_OPS = {
 # the owner's applier may hold calendar writes after a burst; only the owner's own message releases it
 RELEASE_OPS = {"release_burst": (set(), set())}
 OPS = dict(TODO_OPS, **CAL_OPS, **RELEASE_OPS)
+TERMINAL_OPS = ("add_task", "note", "done")   # T72: the applier asks his passkey for these
+SOURCES = ("whatsapp", "terminal")
 MAX_FIELD = 300
 MAX_QUOTE = 500
 URL_RE = re.compile(r"(?i)\b(?:https?://|www\.)\S+")
@@ -165,8 +173,23 @@ def new_id(now):
     return "todo-%s-%s" % (now.strftime("%Y%m%d-%H%M%S"), secrets.token_hex(2))
 
 
-def build_request(op, fields, message_id, quote, chat="self", evidence=None, now=None, rid=None):
+def check_terminal_evidence(evidence):
+    if evidence is None:
+        return
+    if not isinstance(evidence, list) or len(evidence) > 5:
+        raise Refused("terminal evidence is 0-5 Beeper messages")
+    for e in evidence:
+        if not (isinstance(e, dict) and e.get("kind") == "beeper" and set(e) == {"kind", "chat_id", "message_id"}
+                and all(isinstance(e[k], str) and e[k] and not unsafe(e[k]) for k in ("chat_id", "message_id"))):
+            raise Refused("terminal evidence must be Beeper messages {kind: beeper, chat_id, message_id}")
+
+
+def build_request(op, fields, message_id, quote, chat="self", evidence=None, now=None, rid=None, source="whatsapp"):
     check_fields(op, fields)
+    if source not in SOURCES:
+        raise Refused("source must be one of %s" % ", ".join(SOURCES))
+    if source == "terminal":
+        return _build_terminal(op, fields, message_id, quote, chat, evidence, now, rid)
     if not (isinstance(message_id, str) and message_id.strip() and len(message_id) <= 200 and not unsafe(message_id)):
         raise Refused("message_id (from the channel's message_id) is required")
     if not (isinstance(quote, str) and quote.strip() and len(quote) <= MAX_QUOTE and not unsafe(quote.replace("\n", " "))):
@@ -181,6 +204,26 @@ def build_request(op, fields, message_id, quote, chat="self", evidence=None, now
         req["evidence"] = evidence
     elif evidence:
         raise Refused("evidence is only for calendar requests")
+    if not ID_RE.match(req["id"]):
+        raise Refused("id must look like todo-YYYYMMDD-HHMMSS-xxxx")
+    return req
+
+
+def _build_terminal(op, fields, message_id, quote, chat, evidence, now, rid):
+    if op not in TERMINAL_OPS:
+        raise Refused("a terminal request may only be %s; %s needs his WhatsApp message" % (", ".join(TERMINAL_OPS), op))
+    if message_id is not None:
+        raise Refused("a terminal request has no message id (use --source whatsapp for his WhatsApp message)")
+    if chat not in (None, "self"):
+        raise Refused("a terminal request has no chat")
+    if not (isinstance(quote, str) and quote.strip() and len(quote) <= MAX_QUOTE and not unsafe(quote.replace("\n", " "))):
+        raise Refused("quote must be his exact words, 1-%d characters" % MAX_QUOTE)
+    check_terminal_evidence(evidence)
+    now = now or datetime.now(timezone.utc)
+    req = {"format": FORMAT, "id": rid or new_id(now), "created_at": now.isoformat(), "op": op, "fields": fields,
+           "source": {"kind": "terminal"}, "quote": quote}
+    if evidence:
+        req["evidence"] = evidence
     if not ID_RE.match(req["id"]):
         raise Refused("id must look like todo-YYYYMMDD-HHMMSS-xxxx")
     return req
@@ -213,8 +256,11 @@ def check_outbox(outbox):
 def write_request(req, outbox=None):
     """Write <outbox>/<id>.json atomically; never replace an existing file. Returns the path."""
     outbox = check_outbox(outbox or default_outbox())
-    build_request(req["op"], req["fields"], req["source"]["message_id"], req["quote"], req["source"]["chat"],
-                  req.get("evidence"), datetime.fromisoformat(req["created_at"]), req["id"])
+    src = req.get("source") or {}
+    terminal = src == {"kind": "terminal"}
+    build_request(req["op"], req["fields"], None if terminal else src.get("message_id"), req["quote"],
+                  None if terminal else src.get("chat"), req.get("evidence"), datetime.fromisoformat(req["created_at"]),
+                  req["id"], source="terminal" if terminal else "whatsapp")
     outbox.mkdir(parents=True, exist_ok=True)
     final = outbox / (req["id"] + ".json")
     tmp = outbox / (".%s.%s.tmp" % (req["id"], secrets.token_hex(4)))
@@ -233,7 +279,8 @@ def write_request(req, outbox=None):
         os.unlink(tmp)
     with open(outbox / "sent.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps({"id": req["id"], "op": req["op"], "created_at": req["created_at"],
-                            "message_id": req["source"]["message_id"]}, ensure_ascii=False) + "\n")
+                            "message_id": None if terminal else src["message_id"],
+                            "source": "terminal" if terminal else "whatsapp"}, ensure_ascii=False) + "\n")
     return final
 
 
@@ -264,21 +311,28 @@ def main(argv=None):
     for f in sorted(FLAG_FIELDS):
         ap.add_argument("--" + f.replace("_", "-"), dest=f)
     ap.add_argument("--all-day", dest="all_day", action="store_true")
-    ap.add_argument("--message-id", required=True)
+    ap.add_argument("--message-id")
+    ap.add_argument("--source", choices=SOURCES, default="whatsapp")
     ap.add_argument("--quote", required=True)
-    ap.add_argument("--chat", default="self")
+    ap.add_argument("--chat")
     ap.add_argument("--evidence", action="append")
     a = ap.parse_args(argv)
     fields = {f: getattr(a, f) for f in FLAG_FIELDS if getattr(a, f) is not None}
     if a.all_day:
         fields["all_day"] = True
     try:
-        req = build_request(a.op, fields, a.message_id, a.quote, a.chat, parse_evidence(a.evidence) or None)
+        if a.source == "whatsapp" and not a.message_id:
+            raise Refused("--message-id (from the channel's message_id) is required for a WhatsApp request")
+        req = build_request(a.op, fields, a.message_id, a.quote, a.chat or ("self" if a.source == "whatsapp" else None),
+                            parse_evidence(a.evidence) or None, source=a.source)
         path = write_request(req)
     except Refused as e:
         print("todo-req: refused: %s" % e, file=sys.stderr)
         return 1
     print("%s %s" % (req["id"], path))
+    if a.source == "terminal":
+        print("todo-req: %s waits for his passkey on the phone-approval page; tell him only that an approval is "
+              "waiting (it approves nothing else)" % req["id"], file=sys.stderr)
     return 0
 
 
