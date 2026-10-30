@@ -152,10 +152,10 @@ def test_release_burst_takes_no_fields_and_no_evidence(env, fields, ev):
 # ---------------------------------------------------------------- T75: remove and fix (the owner's applier re-checks)
 
 def bound_quote(op, fields):
-    """His words name the item, and the removal or the new state (the applier refuses anything else)."""
+    """The quote is exactly his command line minus "F:" (SPEC Amendment 1; the applier re-reads his message)."""
     if op == "remove":
-        return "%s をtodoから消して" % fields.get("anchor", "")
-    return "%s の状態を「%s」に" % (fields.get("anchor", ""), fields.get("state", ""))
+        return "todo remove %s" % fields.get("anchor", "")
+    return "todo fix %s => %s" % (fields.get("anchor", ""), fields.get("state", ""))
 
 
 @pytest.mark.parametrize("op,fields", [
@@ -191,12 +191,12 @@ def test_t75_bad_remove_and_fix_are_refused(env, op, fields):
 
 def test_t75_remove_and_fix_from_the_command_line(env, capsys):
     assert todo_req.main(["remove", "--anchor", "カマチ 27,500円", "--message-id", "m8",
-                          "--quote", "カマチ27,500円の[x]をtodoから消し"]) == 0
+                          "--quote", "todo remove カマチ 27,500円"]) == 0
     _, path = capsys.readouterr().out.split()
     data = json.loads(open(path, encoding="utf-8").read())
     assert data["op"] == "remove" and data["fields"] == {"anchor": "カマチ 27,500円"}
     assert todo_req.main(["fix", "--anchor", "英文卒業証明書", "--state", "請求済み", "--message-id", "m9",
-                          "--quote", "英文卒業証明書の4行目メモを2行目の状態「請求済み」に統合"]) == 0
+                          "--quote", "todo fix 英文卒業証明書 => 請求済み"]) == 0
     _, path = capsys.readouterr().out.split()
     data = json.loads(open(path, encoding="utf-8").read())
     assert data["op"] == "fix" and data["fields"] == {"anchor": "英文卒業証明書", "state": "請求済み"}
@@ -208,12 +208,21 @@ def test_t75_the_usage_names_remove_and_fix():
 
 
 @pytest.mark.parametrize("op,fields,quote", [
-    ("remove", {"anchor": "カマチ 27,500円"}, "todoを整理して"),             # does not name the item
-    ("remove", {"anchor": "カマチ 27,500円"}, "カマチ 27,500円 を見て"),       # names it, but no removal word
-    ("fix", {"anchor": "英文卒業証明書", "state": "請求済み"}, "英文卒業証明書をなおして"),   # no new state
-    ("fix", {"anchor": "英文卒業証明書", "state": "請求済み"}, "状態を請求済みに"),         # no item
+    ("remove", {"anchor": "カマチ 27,500円"}, "カマチ 27,500円 は消さないで"),        # not the command line
+    ("remove", {"anchor": "カマチ 27,500円"}, "todo remove カマチ 27,500円 は消さないで"),  # extra text
+    ("remove", {"anchor": "カマチ 27,500円"}, "F: todo remove カマチ 27,500円"),       # the quote has no F:
+    ("remove", {"anchor": "カマチ 27,500円"}, "todo remove カマチ"),                  # anchor mismatch
+    ("fix", {"anchor": "英文卒業証明書", "state": "請求済み"}, "todo fix 英文卒業証明書 => 未請求"),   # state mismatch
+    ("fix", {"anchor": "英文卒業証明書", "state": "請求済み"}, "todo fix 英文卒業 => 請求済み"),       # anchor mismatch
+    ("fix", {"anchor": "英文卒業証明書", "state": "請求済み"}, "todo remove 英文卒業証明書"),          # another op
 ])
 def test_t75_the_quote_must_name_the_item_and_the_change(env, op, fields, quote):
     with pytest.raises(todo_req.Refused):
         file_one(op, fields, quote=quote)
     assert not (env / "factory" / "todo-outbox").exists()
+
+
+def test_t75_the_exact_line_is_compared_after_nfkc_and_trimming(env):
+    req, path = file_one("remove", {"anchor": "カマチ 27,500円"}, quote="  todo remove カマチ 27,500円 ")
+    assert path.is_file()
+    assert "REMOVE_WORDS" not in SCRIPT.read_text(encoding="utf-8")
