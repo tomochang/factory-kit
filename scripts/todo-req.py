@@ -12,9 +12,9 @@ Usage (every request needs the message id from the channel and the owner's exact
   todo-req note       --anchor P-xxxx|exact text --text T                    ...
   todo-req done       --anchor P-xxxx|exact text                             ...
   todo-req remove     --anchor P-xxxx|exact text                             ...
-                      (drops that one item and its sub-lines; the quote names the item and says remove/消す/削除)
+                      (drops that one item and its sub-lines; the quote is exactly "todo remove <anchor>")
   todo-req fix        --anchor P-xxxx|exact text --state S                   ...
-                      (rewrites the item to title / 期限 + 状態(M/D確認): S / 経緯; the quote names the item and S)
+                      (rewrites the item to title / 期限 + 状態(M/D確認): S / 経緯; quote exactly "todo fix <anchor> => S")
   todo-req undo       --target <request id>                                 ...
   todo-req cal_create --summary S --start YYYY-MM-DDTHH:MM --end ... --tz IANA --weekday 火|Tue
                       [--all-day] [--location L] [--description D] --evidence beeper:<chat>:<msg>|gmail:<id> ...
@@ -71,25 +71,28 @@ URL_RE = re.compile(r"(?i)\b(?:https?://|www\.)\S+")
 CAL_URL_HOSTS = ("meet.google.com", "zoom.us", "teams.microsoft.com")
 ID_RE = re.compile(r"^todo-\d{8}-\d{6}-[0-9a-f]{4}$")
 TARGET_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$")
-REMOVE_WORDS = ("消", "削除", "remove", "delete")
 
 
-def squash(text):
-    """NFKC, lower case, no white space: how the applier compares his words with the anchor and the state."""
-    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", text or "")).lower()
+def nfkc(text):
+    return unicodedata.normalize("NFKC", text or "").strip()
+
+
+def exact_line(op, fields):
+    """The one command line his F: message must be (SPEC T75 Amendment 1), without the "F:"."""
+    if op == "fix":
+        return "todo fix %s => %s" % (nfkc(fields["anchor"]), nfkc(fields["state"]))
+    return "todo remove %s" % nfkc(fields["anchor"])
 
 
 def check_bound(op, fields, quote):
-    """remove/fix: his words must name the item, and the removal or the new state (the applier checks the same)."""
+    """remove/fix: the quote is exactly his command line; the applier re-reads his message and parses it itself."""
     if op not in ("remove", "fix"):
         return
-    q = squash(quote)
-    if squash(fields["anchor"]) not in q:
-        raise Refused("his quote must name the item (contain the anchor) for %s" % op)
-    if op == "remove" and not any(w in q for w in REMOVE_WORDS):
-        raise Refused("his quote must say to remove it (%s)" % " / ".join(REMOVE_WORDS))
-    if op == "fix" and squash(fields["state"]) not in q:
-        raise Refused("his quote must contain the new state for fix")
+    if op == "fix" and "=>" in nfkc(fields["anchor"]) + nfkc(fields["state"]):
+        raise Refused("anchor and state may not contain => (it splits the fix line)")
+    want = exact_line(op, fields)
+    if nfkc(quote) != want:
+        raise Refused("for %s the quote must be exactly %r (his whole F: line, without F:)" % (op, want))
 
 
 class Refused(Exception):
