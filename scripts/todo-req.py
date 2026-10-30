@@ -11,6 +11,10 @@ Usage (every request needs the message id from the channel and the owner's exact
   todo-req add_event  --date YYYY-MM-DD [--start HH:MM] [--end HH:MM] [--tz IANA] --title T [--note N] ...
   todo-req note       --anchor P-xxxx|exact text --text T                    ...
   todo-req done       --anchor P-xxxx|exact text                             ...
+  todo-req remove     --anchor P-xxxx|exact text                             ...
+                      (drops that one item and its sub-lines; the quote names the item and says remove/消す/削除)
+  todo-req fix        --anchor P-xxxx|exact text --state S                   ...
+                      (rewrites the item to title / 期限 + 状態(M/D確認): S / 経緯; the quote names the item and S)
   todo-req undo       --target <request id>                                 ...
   todo-req cal_create --summary S --start YYYY-MM-DDTHH:MM --end ... --tz IANA --weekday 火|Tue
                       [--all-day] [--location L] [--description D] --evidence beeper:<chat>:<msg>|gmail:<id> ...
@@ -48,6 +52,8 @@ TODO_OPS = {
     "add_event": ({"date", "title"}, {"start", "end", "tz", "note"}),
     "note": ({"anchor", "text"}, set()),
     "done": ({"anchor"}, set()),
+    "remove": ({"anchor"}, set()),
+    "fix": ({"anchor", "state"}, set()),
     "undo": ({"target"}, set()),
 }
 CAL_OPS = {
@@ -65,6 +71,25 @@ URL_RE = re.compile(r"(?i)\b(?:https?://|www\.)\S+")
 CAL_URL_HOSTS = ("meet.google.com", "zoom.us", "teams.microsoft.com")
 ID_RE = re.compile(r"^todo-\d{8}-\d{6}-[0-9a-f]{4}$")
 TARGET_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$")
+REMOVE_WORDS = ("消", "削除", "remove", "delete")
+
+
+def squash(text):
+    """NFKC, lower case, no white space: how the applier compares his words with the anchor and the state."""
+    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", text or "")).lower()
+
+
+def check_bound(op, fields, quote):
+    """remove/fix: his words must name the item, and the removal or the new state (the applier checks the same)."""
+    if op not in ("remove", "fix"):
+        return
+    q = squash(quote)
+    if squash(fields["anchor"]) not in q:
+        raise Refused("his quote must name the item (contain the anchor) for %s" % op)
+    if op == "remove" and not any(w in q for w in REMOVE_WORDS):
+        raise Refused("his quote must say to remove it (%s)" % " / ".join(REMOVE_WORDS))
+    if op == "fix" and squash(fields["state"]) not in q:
+        raise Refused("his quote must contain the new state for fix")
 
 
 class Refused(Exception):
@@ -107,7 +132,7 @@ def check_text(name, value, table_cell=False, urls="none"):
 
 def check_fields(op, fields):
     if op not in OPS:
-        raise Refused("op %r is not one of %s (no todo delete, no free replace)" % (op, ", ".join(OPS)))
+        raise Refused("op %r is not one of %s (no free replace; remove and fix only by anchor)" % (op, ", ".join(OPS)))
     if not isinstance(fields, dict):
         raise Refused("fields must be an object")
     need, may = OPS[op]
@@ -129,10 +154,12 @@ def check_fields(op, fields):
                                                                "description_append") else "none")
     if op == "undo" and not TARGET_RE.match(fields["target"]):
         raise Refused("target must be a request id")
-    if op in ("note", "done"):
+    if op in ("note", "done", "remove", "fix"):
         a = fields["anchor"].strip()
         if not re.fullmatch(r"P-\d{4}", a) and len(a) < 4:
             raise Refused("anchor must be a P-xxxx ref or at least 4 characters of exact text")
+    if op == "fix" and ("｜" in fields["state"] or "|" in fields["state"]):
+        raise Refused("state may not contain ｜ or | (one field of line 2)")
     if "event_id" in fields and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_@.-]{2,199}", fields["event_id"]):
         raise Refused("event_id must be a Google Calendar event id")
     if op == "cal_update":
@@ -171,6 +198,7 @@ def build_request(op, fields, message_id, quote, chat="self", evidence=None, now
         raise Refused("message_id (from the channel's message_id) is required")
     if not (isinstance(quote, str) and quote.strip() and len(quote) <= MAX_QUOTE and not unsafe(quote.replace("\n", " "))):
         raise Refused("quote must be his exact words, 1-%d characters" % MAX_QUOTE)
+    check_bound(op, fields, quote)
     if not (isinstance(chat, str) and chat and not unsafe(chat)):
         raise Refused("chat must be 'self' or his self-chat id")
     now = now or datetime.now(timezone.utc)
@@ -239,7 +267,7 @@ def write_request(req, outbox=None):
 
 # ---------------------------------------------------------------- CLI
 
-FLAG_FIELDS = {"title", "due", "status", "date", "start", "end", "tz", "note", "anchor", "text", "target",
+FLAG_FIELDS = {"title", "due", "status", "state", "date", "start", "end", "tz", "note", "anchor", "text", "target",
                "summary", "weekday", "location", "description", "description_append", "event_id"}
 
 
