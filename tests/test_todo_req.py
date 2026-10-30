@@ -147,3 +147,73 @@ def test_release_burst_from_the_command_line(env, capsys):
 def test_release_burst_takes_no_fields_and_no_evidence(env, fields, ev):
     with pytest.raises(todo_req.Refused):
         todo_req.build_request("release_burst", fields, message_id="m1", quote="release calendar hold", evidence=ev)
+
+
+# ---------------------------------------------------------------- T75: remove and fix (the owner's applier re-checks)
+
+def bound_quote(op, fields):
+    """His words name the item, and the removal or the new state (the applier refuses anything else)."""
+    if op == "remove":
+        return "%s をtodoから消して" % fields.get("anchor", "")
+    return "%s の状態を「%s」に" % (fields.get("anchor", ""), fields.get("state", ""))
+
+
+@pytest.mark.parametrize("op,fields", [
+    ("remove", {"anchor": "カマチ 27,500円"}),
+    ("remove", {"anchor": "P-0002"}),
+    ("fix", {"anchor": "英文卒業証明書を大学へ請求し", "state": "大学へ請求済み。業者への直送待ち"}),
+])
+def test_t75_remove_and_fix_are_filed_like_done_and_note(env, op, fields):
+    req, path = file_one(op, fields, quote=bound_quote(op, fields))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data == req and set(data) == KEYS and data["op"] == op and data["fields"] == fields
+    assert "evidence" not in data
+
+
+@pytest.mark.parametrize("op,fields", [
+    ("remove", {"anchor": "ab"}),                                   # anchor too short, like done
+    ("remove", {}),
+    ("remove", {"anchor": "カマチ 27,500円", "state": "x"}),          # remove takes no state
+    ("fix", {"anchor": "英文卒業証明書"}),                             # state is required
+    ("fix", {"anchor": "ab", "state": "x"}),
+    ("fix", {"anchor": "英文卒業証明書", "state": "済み｜確認: 2099-01-01"}),   # no field separator
+    ("fix", {"anchor": "英文卒業証明書", "state": "済み | 確認"}),
+    ("fix", {"anchor": "英文卒業証明書", "state": "a\nb"}),
+    ("fix", {"anchor": "英文卒業証明書", "state": "<!-- ref: P-1 -->"}),
+    ("fix", {"anchor": "英文卒業証明書", "state": "  "}),
+    ("fix", {"anchor": "英文卒業証明書", "state": "x", "text": "y"}),
+])
+def test_t75_bad_remove_and_fix_are_refused(env, op, fields):
+    with pytest.raises(todo_req.Refused):
+        file_one(op, fields, quote=bound_quote(op, fields))
+    assert not (env / "factory" / "todo-outbox").exists()
+
+
+def test_t75_remove_and_fix_from_the_command_line(env, capsys):
+    assert todo_req.main(["remove", "--anchor", "カマチ 27,500円", "--message-id", "m8",
+                          "--quote", "カマチ27,500円の[x]をtodoから消し"]) == 0
+    _, path = capsys.readouterr().out.split()
+    data = json.loads(open(path, encoding="utf-8").read())
+    assert data["op"] == "remove" and data["fields"] == {"anchor": "カマチ 27,500円"}
+    assert todo_req.main(["fix", "--anchor", "英文卒業証明書", "--state", "請求済み", "--message-id", "m9",
+                          "--quote", "英文卒業証明書の4行目メモを2行目の状態「請求済み」に統合"]) == 0
+    _, path = capsys.readouterr().out.split()
+    data = json.loads(open(path, encoding="utf-8").read())
+    assert data["op"] == "fix" and data["fields"] == {"anchor": "英文卒業証明書", "state": "請求済み"}
+
+
+def test_t75_the_usage_names_remove_and_fix():
+    doc = todo_req.__doc__
+    assert re.search(r"todo-req remove\s+--anchor", doc) and re.search(r"todo-req fix\s+--anchor .* --state", doc)
+
+
+@pytest.mark.parametrize("op,fields,quote", [
+    ("remove", {"anchor": "カマチ 27,500円"}, "todoを整理して"),             # does not name the item
+    ("remove", {"anchor": "カマチ 27,500円"}, "カマチ 27,500円 を見て"),       # names it, but no removal word
+    ("fix", {"anchor": "英文卒業証明書", "state": "請求済み"}, "英文卒業証明書をなおして"),   # no new state
+    ("fix", {"anchor": "英文卒業証明書", "state": "請求済み"}, "状態を請求済みに"),         # no item
+])
+def test_t75_the_quote_must_name_the_item_and_the_change(env, op, fields, quote):
+    with pytest.raises(todo_req.Refused):
+        file_one(op, fields, quote=quote)
+    assert not (env / "factory" / "todo-outbox").exists()
